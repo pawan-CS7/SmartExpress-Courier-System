@@ -1,0 +1,597 @@
+USE [master]
+GO
+/****** Object:  Database [CourierDB]    Script Date: 6/5/2026 10:26:20 PM ******/
+CREATE DATABASE [CourierDB]
+ CONTAINMENT = NONE
+ ON  PRIMARY 
+( NAME = N'CourierDB', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS\MSSQL\DATA\CourierDB.mdf' , SIZE = 8192KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB )
+ LOG ON 
+( NAME = N'CourierDB_log', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS\MSSQL\DATA\CourierDB_log.ldf' , SIZE = 8192KB , MAXSIZE = 2048GB , FILEGROWTH = 65536KB )
+ WITH CATALOG_COLLATION = DATABASE_DEFAULT, LEDGER = OFF
+GO
+ALTER DATABASE [CourierDB] SET COMPATIBILITY_LEVEL = 170
+GO
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [CourierDB].[dbo].[sp_fulltext_database] @action = 'enable'
+end
+GO
+ALTER DATABASE [CourierDB] SET ANSI_NULL_DEFAULT OFF 
+GO
+ALTER DATABASE [CourierDB] SET ANSI_NULLS OFF 
+GO
+ALTER DATABASE [CourierDB] SET ANSI_PADDING OFF 
+GO
+ALTER DATABASE [CourierDB] SET ANSI_WARNINGS OFF 
+GO
+ALTER DATABASE [CourierDB] SET ARITHABORT OFF 
+GO
+ALTER DATABASE [CourierDB] SET AUTO_CLOSE OFF 
+GO
+ALTER DATABASE [CourierDB] SET AUTO_SHRINK OFF 
+GO
+ALTER DATABASE [CourierDB] SET AUTO_UPDATE_STATISTICS ON 
+GO
+ALTER DATABASE [CourierDB] SET CURSOR_CLOSE_ON_COMMIT OFF 
+GO
+ALTER DATABASE [CourierDB] SET CURSOR_DEFAULT  GLOBAL 
+GO
+ALTER DATABASE [CourierDB] SET CONCAT_NULL_YIELDS_NULL OFF 
+GO
+ALTER DATABASE [CourierDB] SET NUMERIC_ROUNDABORT OFF 
+GO
+ALTER DATABASE [CourierDB] SET QUOTED_IDENTIFIER OFF 
+GO
+ALTER DATABASE [CourierDB] SET RECURSIVE_TRIGGERS OFF 
+GO
+ALTER DATABASE [CourierDB] SET  DISABLE_BROKER 
+GO
+ALTER DATABASE [CourierDB] SET AUTO_UPDATE_STATISTICS_ASYNC OFF 
+GO
+ALTER DATABASE [CourierDB] SET DATE_CORRELATION_OPTIMIZATION OFF 
+GO
+ALTER DATABASE [CourierDB] SET TRUSTWORTHY OFF 
+GO
+ALTER DATABASE [CourierDB] SET ALLOW_SNAPSHOT_ISOLATION OFF 
+GO
+ALTER DATABASE [CourierDB] SET PARAMETERIZATION SIMPLE 
+GO
+ALTER DATABASE [CourierDB] SET READ_COMMITTED_SNAPSHOT OFF 
+GO
+ALTER DATABASE [CourierDB] SET HONOR_BROKER_PRIORITY OFF 
+GO
+ALTER DATABASE [CourierDB] SET RECOVERY SIMPLE 
+GO
+ALTER DATABASE [CourierDB] SET  MULTI_USER 
+GO
+ALTER DATABASE [CourierDB] SET PAGE_VERIFY CHECKSUM  
+GO
+ALTER DATABASE [CourierDB] SET DB_CHAINING OFF 
+GO
+ALTER DATABASE [CourierDB] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF ) 
+GO
+ALTER DATABASE [CourierDB] SET TARGET_RECOVERY_TIME = 60 SECONDS 
+GO
+ALTER DATABASE [CourierDB] SET DELAYED_DURABILITY = DISABLED 
+GO
+ALTER DATABASE [CourierDB] SET OPTIMIZED_LOCKING = OFF 
+GO
+ALTER DATABASE [CourierDB] SET ACCELERATED_DATABASE_RECOVERY = OFF  
+GO
+ALTER DATABASE [CourierDB] SET QUERY_STORE = ON
+GO
+ALTER DATABASE [CourierDB] SET QUERY_STORE (OPERATION_MODE = READ_WRITE, CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30), DATA_FLUSH_INTERVAL_SECONDS = 900, INTERVAL_LENGTH_MINUTES = 60, MAX_STORAGE_SIZE_MB = 1000, QUERY_CAPTURE_MODE = AUTO, SIZE_BASED_CLEANUP_MODE = AUTO, MAX_PLANS_PER_QUERY = 200, WAIT_STATS_CAPTURE_MODE = ON)
+GO
+USE [CourierDB]
+GO
+/****** Object:  User [maverick]    Script Date: 6/5/2026 10:26:20 PM ******/
+CREATE USER [maverick] FOR LOGIN [maverick] WITH DEFAULT_SCHEMA=[dbo]
+GO
+ALTER ROLE [db_owner] ADD MEMBER [maverick]
+GO
+/****** Object:  Table [dbo].[__EFMigrationsHistory]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[__EFMigrationsHistory](
+	[MigrationId] [nvarchar](150) NOT NULL,
+	[ProductVersion] [nvarchar](32) NOT NULL,
+ CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY CLUSTERED 
+(
+	[MigrationId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[BranchDeposits]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[BranchDeposits](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[BranchId] [int] NULL,
+	[DepositedAmount] [decimal](18, 2) NULL,
+	[Expenses] [decimal](18, 2) NULL,
+	[RemainingAmount] [decimal](18, 2) NULL,
+	[DepositedDate] [datetime] NULL,
+	[Status] [nvarchar](50) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Branches]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Branches](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](150) NULL,
+	[Code] [nvarchar](10) NULL,
+	[DistrictId] [int] NULL,
+	[IsActive] [bit] NULL,
+	[CreatedAt] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Cities]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Cities](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](150) NULL,
+	[DistrictId] [int] NULL,
+	[BranchId] [int] NULL,
+	[Zone] [nvarchar](50) NULL,
+	[PostalCode] [nvarchar](20) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Clients]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Clients](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[BusinessName] [nvarchar](150) NULL,
+	[OwnerName] [nvarchar](150) NULL,
+	[NIC] [nvarchar](20) NULL,
+	[Email] [nvarchar](150) NULL,
+	[Phone] [nvarchar](20) NULL,
+	[Address] [nvarchar](250) NULL,
+	[BusinessRegistrationNo] [nvarchar](100) NULL,
+	[BankName] [nvarchar](100) NULL,
+	[AccountNumber] [nvarchar](50) NULL,
+	[BranchId] [int] NULL,
+	[PickupAddress] [nvarchar](250) NULL,
+	[NearestCityId] [int] NULL,
+	[PaymentTerms] [nvarchar](50) NULL,
+	[IsActive] [bit] NULL,
+	[CreatedAt] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Districts]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Districts](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](100) NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Invoices]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Invoices](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[ClientId] [int] NULL,
+	[InvoiceDate] [datetime] NULL,
+	[TotalCOD] [decimal](18, 2) NULL,
+	[TotalCollected] [decimal](18, 2) NULL,
+	[DeliveryCharges] [decimal](18, 2) NULL,
+	[CommissionPercentage] [decimal](5, 2) NULL,
+	[TotalCommission] [decimal](18, 2) NULL,
+	[FinalAmount] [decimal](18, 2) NULL,
+	[SetoffAmount] [decimal](18, 2) NULL,
+	[Status] [nvarchar](50) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Orders]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Orders](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[WaybillId] [nvarchar](50) NULL,
+	[OrderNo] [nvarchar](50) NULL,
+	[ClientId] [int] NULL,
+	[CustomerName] [nvarchar](150) NULL,
+	[Address] [nvarchar](250) NULL,
+	[Phone1] [nvarchar](20) NULL,
+	[Phone2] [nvarchar](20) NULL,
+	[CityId] [int] NULL,
+	[DistrictId] [int] NULL,
+	[CODAmount] [decimal](18, 2) NULL,
+	[DeliveryCharge] [decimal](18, 2) NULL,
+	[Description] [nvarchar](250) NULL,
+	[Remarks] [nvarchar](250) NULL,
+	[PickupBranchId] [int] NULL,
+	[OriginalBranchId] [int] NULL,
+	[TempBranchId] [int] NULL,
+	[AssignedRiderId] [int] NULL,
+	[Status] [nvarchar](50) NULL,
+	[DeliveryAttempt] [int] NULL,
+	[CreatedAt] [datetime] NULL,
+	[CompletedAt] [datetime] NULL,
+	[StatusChangedAt] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+UNIQUE NONCLUSTERED 
+(
+	[WaybillId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[OrderStatusHistory]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[OrderStatusHistory](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[OrderId] [int] NULL,
+	[Status] [nvarchar](50) NULL,
+	[Remarks] [nvarchar](250) NULL,
+	[UpdatedBy] [int] NULL,
+	[UpdatedAt] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[PickupRequests]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PickupRequests](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[ClientId] [int] NULL,
+	[PickupAddress] [nvarchar](250) NULL,
+	[BranchId] [int] NULL,
+	[NoOfOrders] [int] NULL,
+	[VehicleType] [nvarchar](50) NULL,
+	[RiderId] [int] NULL,
+	[Note] [nvarchar](250) NULL,
+	[Status] [nvarchar](50) NULL,
+	[RequestedDate] [datetime] NULL,
+	[StatusUpdatedDate] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[RiderDeposits]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[RiderDeposits](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[RiderId] [int] NULL,
+	[CollectedCOD] [decimal](18, 2) NULL,
+	[ApprovedAt] [datetime] NULL,
+	[Status] [nvarchar](50) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Riders]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Riders](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](150) NULL,
+	[Phone] [nvarchar](20) NULL,
+	[BranchId] [int] NULL,
+	[VehicleType] [nvarchar](50) NULL,
+	[IsActive] [bit] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Roles]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Roles](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](50) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Users]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Users](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Name] [nvarchar](max) NOT NULL,
+	[Email] [nvarchar](max) NOT NULL,
+	[Phone] [nvarchar](max) NOT NULL,
+	[NIC] [nvarchar](max) NOT NULL,
+	[Address] [nvarchar](max) NOT NULL,
+	[PasswordHash] [nvarchar](max) NOT NULL,
+	[Role] [nvarchar](max) NOT NULL,
+	[BranchId] [int] NULL,
+	[ClientId] [int] NULL,
+	[IsActive] [bit] NOT NULL,
+	[CreatedAt] [datetime2](7) NOT NULL,
+	[RefreshToken] [nvarchar](max) NULL,
+	[RefreshTokenExpiry] [datetime2](7) NULL,
+	[ResetToken] [nvarchar](max) NULL,
+	[ResetTokenExpiry] [datetime2](7) NULL,
+	[UpdatedAt] [datetime2](7) NULL,
+	[LastPasswordChange] [datetime2](7) NULL,
+	[ProfileImage] [nvarchar](max) NULL,
+ CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[WaybillRequests]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[WaybillRequests](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[ClientId] [int] NOT NULL,
+	[NoOfWaybills] [int] NOT NULL,
+	[NoOfBarcodes] [int] NOT NULL,
+	[FromBarcode] [nvarchar](max) NULL,
+	[ToBarcode] [nvarchar](max) NULL,
+	[Status] [nvarchar](max) NOT NULL,
+	[RequestedDate] [datetime2](7) NOT NULL,
+	[ConfirmDate] [datetime2](7) NULL,
+ CONSTRAINT [PK_WaybillRequests] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Waybills]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Waybills](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Barcode] [nvarchar](max) NOT NULL,
+	[IsUsed] [bit] NOT NULL,
+	[ClientId] [int] NOT NULL,
+	[WaybillRequestId] [int] NOT NULL,
+ CONSTRAINT [PK_Waybills] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[WaybillSequences]    Script Date: 6/5/2026 10:26:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[WaybillSequences](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[BranchId] [int] NULL,
+	[Year] [int] NULL,
+	[LastNumber] [int] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+UNIQUE NONCLUSTERED 
+(
+	[BranchId] ASC,
+	[Year] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Index [IX_Orders_ClientId]    Script Date: 6/5/2026 10:26:21 PM ******/
+CREATE NONCLUSTERED INDEX [IX_Orders_ClientId] ON [dbo].[Orders]
+(
+	[ClientId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+/****** Object:  Index [IX_Orders_Rider]    Script Date: 6/5/2026 10:26:21 PM ******/
+CREATE NONCLUSTERED INDEX [IX_Orders_Rider] ON [dbo].[Orders]
+(
+	[AssignedRiderId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+/****** Object:  Index [IX_Orders_Status]    Script Date: 6/5/2026 10:26:21 PM ******/
+CREATE NONCLUSTERED INDEX [IX_Orders_Status] ON [dbo].[Orders]
+(
+	[Status] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+/****** Object:  Index [IX_Orders_WaybillId]    Script Date: 6/5/2026 10:26:21 PM ******/
+CREATE NONCLUSTERED INDEX [IX_Orders_WaybillId] ON [dbo].[Orders]
+(
+	[WaybillId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [dbo].[Branches] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [dbo].[Branches] ADD  DEFAULT (getdate()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Clients] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [dbo].[Clients] ADD  DEFAULT (getdate()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT ((0)) FOR [DeliveryAttempt]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT (getdate()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[OrderStatusHistory] ADD  DEFAULT (getdate()) FOR [UpdatedAt]
+GO
+ALTER TABLE [dbo].[Riders] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [dbo].[BranchDeposits]  WITH CHECK ADD FOREIGN KEY([BranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[Branches]  WITH CHECK ADD FOREIGN KEY([DistrictId])
+REFERENCES [dbo].[Districts] ([Id])
+GO
+ALTER TABLE [dbo].[Cities]  WITH CHECK ADD FOREIGN KEY([BranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[Cities]  WITH CHECK ADD FOREIGN KEY([DistrictId])
+REFERENCES [dbo].[Districts] ([Id])
+GO
+ALTER TABLE [dbo].[Clients]  WITH CHECK ADD FOREIGN KEY([BranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[Clients]  WITH CHECK ADD FOREIGN KEY([NearestCityId])
+REFERENCES [dbo].[Cities] ([Id])
+GO
+ALTER TABLE [dbo].[Invoices]  WITH CHECK ADD FOREIGN KEY([ClientId])
+REFERENCES [dbo].[Clients] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([AssignedRiderId])
+REFERENCES [dbo].[Riders] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([CityId])
+REFERENCES [dbo].[Cities] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([ClientId])
+REFERENCES [dbo].[Clients] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([DistrictId])
+REFERENCES [dbo].[Districts] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([OriginalBranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([PickupBranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([TempBranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[OrderStatusHistory]  WITH CHECK ADD FOREIGN KEY([OrderId])
+REFERENCES [dbo].[Orders] ([Id])
+GO
+ALTER TABLE [dbo].[PickupRequests]  WITH CHECK ADD FOREIGN KEY([BranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[PickupRequests]  WITH CHECK ADD FOREIGN KEY([ClientId])
+REFERENCES [dbo].[Clients] ([Id])
+GO
+ALTER TABLE [dbo].[PickupRequests]  WITH CHECK ADD FOREIGN KEY([RiderId])
+REFERENCES [dbo].[Riders] ([Id])
+GO
+ALTER TABLE [dbo].[RiderDeposits]  WITH CHECK ADD FOREIGN KEY([RiderId])
+REFERENCES [dbo].[Riders] ([Id])
+GO
+ALTER TABLE [dbo].[Riders]  WITH CHECK ADD FOREIGN KEY([BranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+ALTER TABLE [dbo].[WaybillSequences]  WITH CHECK ADD FOREIGN KEY([BranchId])
+REFERENCES [dbo].[Branches] ([Id])
+GO
+USE [master]
+GO
+ALTER DATABASE [CourierDB] SET  READ_WRITE 
+GO
+
+
+
+
+
+USE [CourierDB];
+GO
+
+-- Permanent Fix: Auto-create Default Branch and Admin User during database setup
+
+-- 1. Create Default Branch (Prevents Foreign Key errors when approving waybills)
+IF NOT EXISTS (SELECT * FROM dbo.Branches WHERE Id = 1)
+BEGIN
+    -- Enable explicit identity insert to force Id = 1
+    SET IDENTITY_INSERT dbo.Branches ON;
+    
+    INSERT INTO dbo.Branches (Id, Name, Code, IsActive, CreatedAt) 
+    VALUES (1, 'Main Branch', 'MAIN', 1, GETDATE());
+    
+    -- Disable identity insert after adding the record
+    SET IDENTITY_INSERT dbo.Branches OFF;
+END
+GO
+
+-- 2. Create the first Admin User (Default Password: Password@123)
+-- This ensures an admin is always available in a fresh database setup
+IF NOT EXISTS (SELECT * FROM dbo.Users WHERE Email = 'admin@smartcourier.lk')
+BEGIN
+    INSERT INTO dbo.Users (Name, Email, Phone, NIC, Address, PasswordHash, Role, IsActive, CreatedAt)
+    VALUES (
+        'System Admin', 
+        'admin@smartcourier.lk', 
+        '0000000000', 
+        '000000000000', 
+        'Head Office', 
+        '$2a$11$sZf5HND4/otbKp5lUunM9.lSUeQqflQDBk8ni8MKvF...', -- Pre-hashed bcrypt password for 'Password@123'
+        'Admin', 
+        1, 
+        GETDATE()
+    );
+END
+GO

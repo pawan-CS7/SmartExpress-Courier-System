@@ -1,0 +1,18 @@
+# Build
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Environment
+appsettings.Development.json
+.env
+
+# NuGet
+packages/
+
+# Logs
+*.log
