@@ -39,7 +39,7 @@ import ProcessingOrders from "../pages/client/ProcessingOrders";
 import WaybillManagement from "../pages/admin/WaybillManagement";
 
 import ClientProfile from "../pages/client/Profile";
-
+import ComingSoon from "../pages/ComingSoon";
 
 function AppRoutes() {
 
@@ -171,6 +171,12 @@ element={<ProcessingOrders />}
           element={<ClientProfile />}
         />
 
+        {/* Coming Soon Routes */}
+        <Route path="returned" element={<ComingSoon />} />
+        <Route path="age" element={<ComingSoon />} />
+        <Route path="receivable" element={<ComingSoon />} />
+        <Route path="received" element={<ComingSoon />} />
+        <Route path="pickups" element={<ComingSoon />} />
 
       </Route>
 
@@ -243,6 +249,10 @@ element={<ProcessingOrders />}
           path="profile"
           element={<Profile />}
         />
+
+        {/* Coming Soon Routes */}
+        <Route path="cities" element={<ComingSoon />} />
+        <Route path="notify" element={<ComingSoon />} />
 
 <Route
   path="waybill-management"

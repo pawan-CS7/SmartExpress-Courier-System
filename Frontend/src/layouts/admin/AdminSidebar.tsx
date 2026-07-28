@@ -12,7 +12,7 @@ const menu = [
 
   {
     label: "All Orders",
-    path: "/admin/all-orders",
+    path: "/admin/orders",
     icon: "📦"
   },
 

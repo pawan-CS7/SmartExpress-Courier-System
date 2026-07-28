@@ -1,4 +1,4 @@
-﻿using Courier.API;
+using Courier.API;
 using Courier.API.DTOs;
 using Courier.API.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -49,6 +49,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Email is already registered." });
         }
 
+        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
             int maxClientId = await _context.Users.MaxAsync(u => (int?)u.ClientId) ?? 0;
@@ -78,12 +79,75 @@ public class AuthController : ControllerBase
                 newUser.Id
             );
 
+            // FIX: Also insert into Clients table to prevent Foreign Key constraint errors on Orders
+            try 
+            {
+                await _context.Database.ExecuteSqlRawAsync(
+                    "SET IDENTITY_INSERT Clients ON; " +
+                    "INSERT INTO Clients (Id, BusinessName, OwnerName, Email, Phone, Address, NIC, IsActive, CreatedAt) " +
+                    "VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, 1, GETUTCDATE()); " +
+                    "SET IDENTITY_INSERT Clients OFF;", 
+                    newClientId, dto.Name, dto.Name, dto.Email, dto.Phone, dto.Address, dto.NIC);
+            } 
+            catch 
+            {
+                // Fallback in case Id is not an IDENTITY column
+                await _context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO Clients (Id, BusinessName, OwnerName, Email, Phone, Address, NIC, IsActive, CreatedAt) " +
+                    "VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, 1, GETUTCDATE());", 
+                    newClientId, dto.Name, dto.Name, dto.Email, dto.Phone, dto.Address, dto.NIC);
+            }
+
+            await transaction.CommitAsync();
             return Ok(new { message = "Client registered successfully", clientId = newClientId });
         }
         catch (Exception ex)
         {
+            await transaction.RollbackAsync();
             return StatusCode(500, new { message = "An error occurred during registration.", details = ex.Message });
         }
+    }
+
+    [HttpGet("fix-missing-clients")]
+    [AllowAnonymous]
+    public async Task<IActionResult> FixMissingClients()
+    {
+        var usersWithClients = await _context.Users.Where(u => u.ClientId != null).ToListAsync();
+        int fixedCount = 0;
+        foreach(var u in usersWithClients)
+        {
+            var exists = await _context.Clients.AnyAsync(c => c.Id == u.ClientId);
+            if (!exists)
+            {
+                try {
+                    await _context.Database.ExecuteSqlRawAsync(
+                        "SET IDENTITY_INSERT Clients ON; " +
+                        "INSERT INTO Clients (Id, BusinessName, OwnerName, Email, Phone, IsActive, CreatedAt) " +
+                        "VALUES ({0}, {1}, {2}, {3}, {4}, 1, GETUTCDATE()); " +
+                        "SET IDENTITY_INSERT Clients OFF;", 
+                        u.ClientId, u.Name ?? "Unknown", u.Name ?? "Unknown", u.Email ?? "", u.Phone ?? "");
+                    fixedCount++;
+                } catch {
+                    try {
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "INSERT INTO Clients (Id, BusinessName, OwnerName, Email, Phone, IsActive, CreatedAt) " +
+                            "VALUES ({0}, {1}, {2}, {3}, {4}, 1, GETUTCDATE());", 
+                            u.ClientId, u.Name ?? "Unknown", u.Name ?? "Unknown", u.Email ?? "", u.Phone ?? "");
+                        fixedCount++;
+                    } catch { }
+                }
+            }
+        }
+        return Ok(new { message = $"Fixed {fixedCount} missing client records in the database." });
+    }
+
+    [HttpGet("test-db")]
+    [AllowAnonymous]
+    public async Task<IActionResult> TestDb()
+    {
+        var user = await _context.Users.FindAsync(3);
+        var client = user?.ClientId != null ? await _context.Clients.FindAsync(user.ClientId) : null;
+        return Ok(new { User = user, Client = client });
     }
 
     // ========================= REFRESH TOKEN =========================

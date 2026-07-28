@@ -38,11 +38,9 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      console.log("Unauthorized");
-      /* Optional: Handle logout here
+      console.log("Unauthorized - Token Expired, redirecting to login");
       localStorage.clear();
-      window.location.href = "/";
-      */
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   }

@@ -1,75 +1,77 @@
 import { Link } from "react-router-dom";
-
+import { useEffect, useState } from "react";
 import DashboardCard from "../../components/ui/DashboardCard";
+import { getAdminDashboard } from "../../services/dashboardService";
 
 function Dashboard() {
+  const [metrics, setMetrics] = useState({
+    totalOrders: 0,
+    delivered: 0,
+    pending: 0,
+    revenue: 0
+  });
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const data = await getAdminDashboard();
+        setMetrics(data);
+      } catch (error) {
+        console.error("Failed to load dashboard metrics", error);
+      }
+    };
+    fetchMetrics();
+  }, []);
 
   return (
-
     <div className="space-y-6">
-
       {/* 🔴 TOP BANNER */}
       <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white p-6 rounded-2xl shadow-sm flex justify-between items-center">
-
         <div>
-
           <h2 className="text-lg opacity-90">
             Welcome Back 👋
           </h2>
-
           <h1 className="text-4xl font-bold mt-2">
             Admin Dashboard
           </h1>
-
           <p className="mt-2 text-sm opacity-80">
             Manage courier operations efficiently
           </p>
-
         </div>
-
         <img
           src="/Delivery.png"
           alt="delivery"
           className="w-40 hidden md:block"
         />
-
       </div>
 
       {/* 📊 STATISTICS */}
       <div>
-
         <h2 className="text-lg font-semibold mb-4">
           Overview
         </h2>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-
           <DashboardCard
             title="Total Orders"
-            value={1250}
+            value={metrics.totalOrders}
             icon="📦"
           />
-
           <DashboardCard
             title="Delivered"
-            value={980}
+            value={metrics.delivered}
             icon="✅"
           />
-
           <DashboardCard
             title="Pending"
-            value={120}
+            value={metrics.pending}
             icon="🚚"
           />
-
           <DashboardCard
             title="Revenue"
-            value="Rs. 450K"
+            value={`Rs. ${metrics.revenue.toLocaleString()}`}
             icon="💰"
           />
-
         </div>
-
       </div>
 
       {/* ⚡ QUICK ACCESS */}

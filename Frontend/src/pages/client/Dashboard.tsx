@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { getClientDashboard } from "../../services/dashboardService";
 import {
   Truck,
   Package,
@@ -7,18 +9,46 @@ import {
 } from "lucide-react";
 
 function Dashboard() {
-const stats = [
-  { title: "Processing", value: 0, color: "text-blue-500", icon: "🔄" },
-  { title: "Dispatched to Destination", value: 0, color: "text-purple-500", icon: "✈️" },
-  { title: "Collected from Warehouse", value: 0, color: "text-green-500", icon: "📦" },
-  { title: "Received at Destination", value: 0, color: "text-yellow-500", icon: "📍" },
-  { title: "Out for Delivery", value: 0, color: "text-emerald-500", icon: "🚴" },
+  const [metrics, setMetrics] = useState({
+    processing: 0,
+    dispatched: 0,
+    collected: 0,
+    receivedDestination: 0,
+    outForDelivery: 0,
+    rescheduled: 0,
+    failedToDeliver: 0,
+    returnedToClient: 0,
+    returnedBranchRescheduled: 0,
+    returnedBranchFailed: 0,
+    receivableCOD: 0,
+    netReceivable: 0,
+    totalReceived: 0,
+  });
 
-  { title: "Rescheduled", value: 0, color: "text-blue-400", icon: "🔁" },
-  { title: "Failed to Deliver", value: 0, color: "text-red-500", icon: "❌" },
-  { title: "Returned to Client", value: 6, color: "text-orange-500", icon: "👤" },
-  { title: "Returned to Branch Rescheduled", value: 0, color: "text-amber-600", icon: "🏢" },
-  { title: "Returned to Branch Failed", value: 0, color: "text-red-600", icon: "🚫" },
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const data = await getClientDashboard();
+        setMetrics(data);
+      } catch (error) {
+        console.error("Failed to load client metrics", error);
+      }
+    };
+    fetchMetrics();
+  }, []);
+
+const stats = [
+  { title: "Processing", value: metrics.processing, color: "text-blue-500", icon: "🔄" },
+  { title: "Dispatched to Destination", value: metrics.dispatched, color: "text-purple-500", icon: "✈️" },
+  { title: "Collected from Warehouse", value: metrics.collected, color: "text-green-500", icon: "📦" },
+  { title: "Received at Destination", value: metrics.receivedDestination, color: "text-yellow-500", icon: "📍" },
+  { title: "Out for Delivery", value: metrics.outForDelivery, color: "text-emerald-500", icon: "🚴" },
+
+  { title: "Rescheduled", value: metrics.rescheduled, color: "text-blue-400", icon: "🔁" },
+  { title: "Failed to Deliver", value: metrics.failedToDeliver, color: "text-red-500", icon: "❌" },
+  { title: "Returned to Client", value: metrics.returnedToClient, color: "text-orange-500", icon: "👤" },
+  { title: "Returned to Branch Rescheduled", value: metrics.returnedBranchRescheduled, color: "text-amber-600", icon: "🏢" },
+  { title: "Returned to Branch Failed", value: metrics.returnedBranchFailed, color: "text-red-600", icon: "🚫" },
 ];
 
   return (
@@ -70,17 +100,17 @@ const stats = [
 
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-500">Receivable COD</p>
-              <h2 className="text-lg font-bold text-blue-500">0</h2>
+              <h2 className="text-lg font-bold text-blue-500">Rs. {metrics.receivableCOD.toLocaleString()}</h2>
             </div>
 
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-500">Net Receivable</p>
-              <h2 className="text-lg font-bold text-red-500">0</h2>
+              <h2 className="text-lg font-bold text-red-500">Rs. {metrics.netReceivable.toLocaleString()}</h2>
             </div>
 
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-500">Total Received</p>
-              <h2 className="text-lg font-bold text-green-500">16,030</h2>
+              <h2 className="text-lg font-bold text-green-500">Rs. {metrics.totalReceived.toLocaleString()}</h2>
             </div>
 
           </div>

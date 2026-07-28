@@ -1,4 +1,4 @@
-﻿using Courier.API.Entities;
+using Courier.API.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
@@ -26,7 +26,23 @@ namespace Courier.API.Controllers
 
             if (roleClaim == "Admin" || User.IsInRole("Admin"))
             {
-                var requests = await _context.WaybillRequests.ToListAsync();
+                var requests = await _context.WaybillRequests
+                    .Join(_context.Users.Where(u => u.ClientId != null),
+                        wr => wr.ClientId,
+                        u => u.ClientId,
+                        (wr, u) => new
+                        {
+                            wr.Id,
+                            wr.ClientId,
+                            ClientName = u.Name,
+                            wr.NoOfWaybills,
+                            wr.NoOfBarcodes,
+                            wr.FromBarcode,
+                            wr.ToBarcode,
+                            wr.Status,
+                            wr.RequestedDate,
+                            wr.ConfirmDate
+                        }).ToListAsync();
                 return Ok(requests);
             }
 
@@ -37,7 +53,22 @@ namespace Courier.API.Controllers
                 {
                     var clientRequests = await _context.WaybillRequests
                         .Where(x => x.ClientId == (user.ClientId ?? 0))
-                        .ToListAsync();
+                        .Join(_context.Users.Where(u => u.ClientId != null),
+                            wr => wr.ClientId,
+                            u => u.ClientId,
+                            (wr, u) => new
+                            {
+                                wr.Id,
+                                wr.ClientId,
+                                ClientName = u.Name,
+                                wr.NoOfWaybills,
+                                wr.NoOfBarcodes,
+                                wr.FromBarcode,
+                                wr.ToBarcode,
+                                wr.Status,
+                                wr.RequestedDate,
+                                wr.ConfirmDate
+                            }).ToListAsync();
                     return Ok(clientRequests);
                 }
             }
@@ -99,6 +130,33 @@ namespace Courier.API.Controllers
             }
 
             return Ok(new List<Waybill>());
+        }
+
+        [HttpGet("available")]
+        public async Task<IActionResult> GetAvailableBarcodes()
+        {
+            try 
+            {
+                var userIdString = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdString)) return Unauthorized(new { message = "Token missing userId claim." });
+
+                var user = await _context.Users.FindAsync(int.Parse(userIdString));
+                if (user == null) return Unauthorized(new { message = "User not found in database." });
+                if (user.ClientId == null) return Unauthorized(new { message = "User is not mapped to a Client." });
+
+                int clientId = user.ClientId ?? 0;
+
+                var availableWaybills = await _context.Waybills
+                    .Where(w => w.ClientId == clientId && w.IsUsed == false)
+                    .Select(w => new { w.Id, w.Barcode })
+                    .ToListAsync();
+
+                return Ok(availableWaybills);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message, inner = ex.InnerException?.Message });
+            }
         }
 
         // ========================= CREATE REQUEST =========================
@@ -198,6 +256,24 @@ namespace Courier.API.Controllers
                 
                 return StatusCode(500, new { message = "An internal database error occurred while saving the waybills.", details = ex.InnerException?.Message });
             }
+        }
+        [HttpGet("client/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetClientDetails(int id)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.ClientId == id);
+            if (user == null) return NotFound();
+            
+            return Ok(new {
+                businessName = user.Name,
+                ownerName = user.Name,
+                nic = user.NIC,
+                email = user.Email,
+                phone = user.Phone,
+                address = user.Address,
+                bankName = "N/A",
+                accountNumber = "N/A"
+            });
         }
     }
 }
