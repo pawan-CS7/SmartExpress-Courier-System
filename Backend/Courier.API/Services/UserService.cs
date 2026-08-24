@@ -1,4 +1,4 @@
-﻿using Courier.API.DTOs;
+using Courier.API.DTOs;
 using Courier.API.Entities;
 
 namespace Courier.API.Services
@@ -16,6 +16,16 @@ namespace Courier.API.Services
         {
             var hashedPassword = global::BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
+            var roleToAssign = dto.Role;
+            if (dto.BranchId.HasValue && (roleToAssign == "BranchManager" || roleToAssign == "Manager"))
+            {
+                var branch = await _context.Branches.FindAsync(dto.BranchId.Value);
+                if (branch != null && branch.IsSortingCenter)
+                {
+                    roleToAssign = "SortingCenterManager";
+                }
+            }
+
             var user = new User
             {
                 Name = dto.Name,
@@ -24,7 +34,7 @@ namespace Courier.API.Services
                 NIC = dto.NIC,
                 Address = dto.Address,
                 PasswordHash = hashedPassword,
-                Role = dto.Role,
+                Role = roleToAssign,
                 BranchId = dto.BranchId,
                 ClientId = dto.ClientId
             };

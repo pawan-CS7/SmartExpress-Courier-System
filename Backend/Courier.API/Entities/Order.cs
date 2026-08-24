@@ -3,8 +3,7 @@ namespace Courier.API.Entities
     public class Order
     {
         public int Id { get; set; }
-        public string? WaybillId { get; set; }
-        public string? OrderNo { get; set; }
+        public string? TrackingNumber { get; set; }
         public int? ClientId { get; set; }
         public Client? Client { get; set; }
         public string? CustomerName { get; set; }
@@ -18,8 +17,10 @@ namespace Courier.API.Entities
         public string? Description { get; set; }
         public string? Remarks { get; set; }
         public int? PickupBranchId { get; set; }
-        public int? OriginalBranchId { get; set; }
+        public int? OriginBranchId { get; set; }
+        public int? DestinationBranchId { get; set; }
         public int? TempBranchId { get; set; }
+        public int? CurrentBranchId { get; set; }
         public int? AssignedRiderId { get; set; }
         public string? Status { get; set; }
         public int? DeliveryAttempt { get; set; }

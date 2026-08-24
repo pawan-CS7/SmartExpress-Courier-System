@@ -1,34 +1,56 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getAllOrders } from "../../services/orderService";
 import { getTrackingInfo, updateTrackingStatus } from "../../services/trackingService";
 import type { OrderTracking } from "../../services/trackingService";
 import type { Order } from "../../types/Order";
 
 import {
-    Package,
     Clock,
-    CheckCircle,
     Search,
     MapPin,
     X,
     Activity,
-    Printer
+    Filter,
+    LayoutGrid,
+    Eye,
+    RotateCcw,
+    ChevronDown,
+    ChevronUp,
+    FileText
 } from "lucide-react";
-import WaybillModal from "../../components/WaybillModal";
+import FilterSidebar, { type FilterState } from "../../components/FilterSidebar";
+import { branchService } from "../../services/branchService";
+import type { Branch } from "../../types/branch";
+import TrackingTimeline from "../../components/TrackingTimeline";
 
 function AllOrders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState("");
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    // Filter State
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [filters, setFilters] = useState<FilterState>(() => {
+        const queryParams = new URLSearchParams(window.location.search);
+        return {
+            search: queryParams.get("search") || "",
+            statuses: [],
+            startDate: "",
+            endDate: "",
+            branchId: queryParams.get("branchId") || "",
+            originBranchId: "",
+            destinationBranchId: ""
+        };
+    });
 
     // Tracking Modal State
     const [showTrackingModal, setShowTrackingModal] = useState(false);
     const [selectedTracking, setSelectedTracking] = useState<OrderTracking | null>(null);
     const [trackingLoading, setTrackingLoading] = useState(false);
 
-    // Waybill Modal State
-    const [waybillOrder, setWaybillOrder] = useState<Order | null>(null);
-    
     // Update Tracking State
     const [newStatus, setNewStatus] = useState("Picked Up");
     const [newLocation, setNewLocation] = useState("");
@@ -37,11 +59,43 @@ function AllOrders() {
 
     useEffect(() => {
         loadOrders();
+
+        // Real-time synchronization: poll every 10 seconds and listen for custom events
+        const interval = setInterval(() => {
+            loadOrders(false);
+        }, 10000);
+
+        const handleOrdersUpdated = () => {
+            loadOrders(false);
+        };
+
+        window.addEventListener("ordersUpdated", handleOrdersUpdated);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener("ordersUpdated", handleOrdersUpdated);
+        };
     }, []);
 
-    const loadOrders = async () => {
+    useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const searchParam = queryParams.get("search");
+        const branchIdParam = queryParams.get("branchId");
+        if (searchParam && searchParam !== filters.search) {
+            setFilters(prev => ({ ...prev, search: searchParam }));
+        }
+        if (branchIdParam && branchIdParam !== filters.branchId) {
+            setFilters(prev => ({ ...prev, branchId: branchIdParam }));
+        }
+
+        // Fetch branches for filter
+        branchService.getBranches().then(data => setBranches(data)).catch(console.error);
+    }, [location.search]);
+
+    const loadOrders = async (showSpinner = true) => {
+        if (showSpinner) setLoading(true);
         try {
-            const data = await getAllOrders();
+            const data = await getAllOrders(filters.branchId || undefined);
             if (Array.isArray(data)) setOrders(data);
             else if (Array.isArray(data.orders)) setOrders(data.orders);
             else if (Array.isArray(data.data)) setOrders(data.data);
@@ -49,16 +103,21 @@ function AllOrders() {
         } catch {
             setOrders([]);
         } finally {
-            setLoading(false);
+            if (showSpinner) setLoading(false);
         }
     };
 
-    const handleTrackClick = async (trackingNo: string) => {
+    // Reload orders when branch filter changes
+    useEffect(() => {
+        loadOrders();
+    }, [filters.branchId]);
+
+    const handleTrackClick = async (trackingNumber: string) => {
         setTrackingLoading(true);
         setShowTrackingModal(true);
         setSelectedTracking(null);
         try {
-            const data = await getTrackingInfo(trackingNo);
+            const data = await getTrackingInfo(trackingNumber);
             setSelectedTracking(data);
         } catch (error) {
             console.error("Failed to load tracking info", error);
@@ -73,7 +132,7 @@ function AllOrders() {
         try {
             await updateTrackingStatus(selectedTracking.orderId, newStatus, newLocation, newRemarks);
             // Refresh tracking info
-            const data = await getTrackingInfo(selectedTracking.waybillId || selectedTracking.orderNo);
+            const data = await getTrackingInfo(selectedTracking.trackingNumber);
             setSelectedTracking(data);
             setNewRemarks("");
             setNewLocation("");
@@ -87,111 +146,255 @@ function AllOrders() {
     };
 
     const filteredOrders = useMemo(() => {
-        return orders.filter(x =>
-            x.orderNo?.toLowerCase().includes(search.toLowerCase())
-        );
-    }, [orders, search]);
+        return orders.filter(x => {
+            const matchSearch = x.trackingNumber?.toLowerCase().includes(filters.search.toLowerCase()) || 
+                                x.customerName?.toLowerCase().includes(filters.search.toLowerCase());
+            
+            const matchStatus = filters.statuses.length === 0 || filters.statuses.includes(x.status || '');
+            
+            const orderDate = new Date(x.createdAt || '');
+            const matchStartDate = !filters.startDate || orderDate >= new Date(filters.startDate);
+            
+            let matchEndDate = true;
+            if (filters.endDate) {
+                const endDate = new Date(filters.endDate);
+                endDate.setHours(23, 59, 59, 999);
+                matchEndDate = orderDate <= endDate;
+            }
 
-    const totalOrders = orders.length;
-    const delivered = orders.filter(x => x.status === "Delivered").length;
-    const pending = orders.filter(x => x.status === "Pending").length;
+            return matchSearch && matchStatus && matchStartDate && matchEndDate;
+        });
+    }, [orders, filters]);
+
+    const hasActiveFilters = filters.search !== '' || filters.statuses.length > 0 || filters.startDate !== '' || filters.endDate !== '' || (filters.branchId && filters.branchId !== '');
+
+    const clearFilters = () => {
+        setFilters({
+            search: '',
+            statuses: [],
+            startDate: '',
+            endDate: '',
+            branchId: '',
+            originBranchId: "",
+            destinationBranchId: ""
+        });
+    };
 
     if (loading) {
         return <div className="p-8 text-indigo-600 font-semibold animate-pulse">Loading orders...</div>;
     }
 
     return (
-        <div className="min-h-screen p-8 bg-gradient-to-br from-slate-50 to-indigo-50 relative">
-            <h1 className="text-4xl font-bold mb-2 text-slate-800">Orders Management</h1>
-            <p className="text-gray-500 mb-8">Manage courier deliveries and track statuses</p>
+        <div className="min-h-screen bg-[#F5F7FA] text-slate-800 font-sans">
+            {/* Main Content Area */}
+            <div className="pt-6 px-6">
+                
+                {/* Info Banner */}
+                <div className="bg-[#FFF8E1] border border-[#FFE082] rounded-md p-3 flex items-center text-[#8D6E26] text-sm font-medium shadow-sm mb-4">
+                    <Clock size={16} className="text-[#FF8F00] mr-2" />
+                    If you need to check more than 100 rows, please use the Excel export option. Export All functions are available under the Export As menu. 
+                    <a href="#" className="ml-1 text-blue-600 hover:underline cursor-pointer ml-1">Video Guide</a>
+                </div>
 
-            {/* KPI */}
-            <div className="grid md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-3xl p-6 shadow-lg transform transition hover:scale-105">
-                    <Package size={32} />
-                    <h2 className="mt-3 font-medium opacity-90">Total Orders</h2>
-                    <p className="text-4xl font-bold tracking-tight">{totalOrders}</p>
-                </div>
-                <div className="bg-gradient-to-r from-orange-400 to-red-500 text-white rounded-3xl p-6 shadow-lg transform transition hover:scale-105">
-                    <Clock size={32} />
-                    <h2 className="mt-3 font-medium opacity-90">Pending</h2>
-                    <p className="text-4xl font-bold tracking-tight">{pending}</p>
-                </div>
-                <div className="bg-gradient-to-r from-emerald-400 to-teal-500 text-white rounded-3xl p-6 shadow-lg transform transition hover:scale-105">
-                    <CheckCircle size={32} />
-                    <h2 className="mt-3 font-medium opacity-90">Delivered</h2>
-                    <p className="text-4xl font-bold tracking-tight">{delivered}</p>
-                </div>
-            </div>
+                {/* Toolbar */}
+                <div className="flex items-center justify-between bg-transparent mb-4">
+                    {/* Left Controls */}
+                    <div className="flex items-center gap-2">
+                        <select className="border border-gray-200 text-gray-500 text-sm rounded-md px-3 py-2 outline-none bg-white min-w-[120px] shadow-sm cursor-pointer hover:border-gray-300">
+                            <option>Waybill ID</option>
+                        </select>
+                        
+                        <div className="relative flex items-center">
+                            <input 
+                                type="text"
+                                placeholder="Search..."
+                                value={filters.search}
+                                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                                className="border border-gray-200 text-gray-700 text-sm rounded-md px-3 py-2 w-64 outline-none bg-white shadow-sm placeholder-gray-300 focus:border-red-400 focus:ring-1 focus:ring-red-400"
+                            />
+                        </div>
 
-            {/* SEARCH */}
-            <div className="bg-white rounded-3xl shadow-sm p-5 mb-8 border border-slate-100">
-                <div className="flex items-center gap-3 text-slate-400">
-                    <Search />
-                    <input
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search tracking no..."
-                        className="w-full outline-none text-slate-700 placeholder-slate-400"
-                    />
-                </div>
-            </div>
+                        <button className="bg-[#E74C3C] hover:bg-[#D35400] text-white p-2 rounded-md shadow-sm transition-colors cursor-pointer">
+                            <Search size={18} />
+                        </button>
+                        
+                        <button onClick={clearFilters} className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 p-2 rounded-md shadow-sm transition-colors cursor-pointer ml-1">
+                            <RotateCcw size={18} />
+                        </button>
+                    </div>
 
-            {/* TABLE */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-sm font-semibold uppercase tracking-wider">
-                        <tr>
-                            <th className="p-5">ID</th>
-                            <th>Tracking No</th>
-                            <th>Client</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-600">
-                        {filteredOrders.length > 0 ? (
-                            filteredOrders.map(order => (
-                                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-5 font-medium text-slate-900">{order.id}</td>
-                                    <td className="font-mono text-indigo-600">{order.orderNo}</td>
-                                    <td className="font-medium text-slate-700">
-                                        {order.client?.businessName || order.client?.ownerName || 'N/A'}
-                                    </td>
-                                    <td>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold
-                                            ${order.status === "Delivered" ? "bg-emerald-100 text-emerald-700" :
-                                              order.status === "Pending" ? "bg-orange-100 text-orange-700" :
-                                              "bg-blue-100 text-blue-700"}`}>
-                                            {order.status || 'Pending'}
-                                        </span>
-                                    </td>
-                                     <td>
-                                        <div className="flex items-center gap-2">
-                                            <button 
-                                                onClick={() => handleTrackClick(order.orderNo || order.id.toString())}
-                                                className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-3.5 py-2 rounded-xl transition-all font-medium text-sm flex items-center gap-1.5 shadow-sm">
-                                                <Activity size={16} /> Track
-                                            </button>
-                                            <button 
-                                                onClick={() => setWaybillOrder(order)}
-                                                title="Print Waybill / Shipping Label"
-                                                className="bg-slate-100 text-slate-700 hover:bg-slate-900 hover:text-white px-3.5 py-2 rounded-xl transition-all font-medium text-sm flex items-center gap-1.5 shadow-sm">
-                                                <Printer size={16} /> Print
-                                            </button>
+                    {/* Right Controls */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center bg-white border border-gray-200 rounded-md shadow-sm">
+                            <select className="px-3 py-1.5 text-sm text-gray-600 outline-none bg-transparent cursor-pointer hover:bg-gray-50 rounded-md">
+                                <option>10</option>
+                                <option>25</option>
+                                <option>50</option>
+                                <option>100</option>
+                            </select>
+                        </div>
+                        
+                        <div className="flex items-center bg-white border border-gray-200 rounded-md shadow-sm">
+                            <select className="px-3 py-1.5 text-sm text-gray-600 outline-none bg-transparent cursor-pointer hover:bg-gray-50 rounded-md">
+                                <option>Export as</option>
+                                <option>Excel</option>
+                                <option>PDF</option>
+                            </select>
+                        </div>
+
+                        <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 p-2 rounded-md shadow-sm transition-colors cursor-pointer">
+                            <LayoutGrid size={18} />
+                        </button>
+
+                        <button 
+                            onClick={() => setIsFilterOpen(true)}
+                            className="bg-[#E74C3C] hover:bg-[#D35400] text-white p-2 rounded-md shadow-sm transition-colors cursor-pointer relative"
+                        >
+                            <Filter size={18} />
+                            {hasActiveFilters && (
+                                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Table Section */}
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-max">
+                            <thead>
+                                <tr className="bg-white border-b border-gray-100">
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-50">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <ChevronUp size={14} className="text-gray-300" /> 
+                                            ORDER DATE 
+                                            <ChevronDown size={14} className="text-gray-300" />
                                         </div>
-                                     </td>
+                                    </th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">WAYBILL ID</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">ORDER ID</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">REMARK</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">DELIVERY ATTEMPT</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-50">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <ChevronUp size={14} className="text-gray-300" /> 
+                                            CLIENT ID 
+                                            <ChevronDown size={14} className="text-gray-300" />
+                                        </div>
+                                    </th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-50">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <ChevronUp size={14} className="text-gray-300" /> 
+                                            CLIENT NAME 
+                                            <ChevronDown size={14} className="text-gray-300" />
+                                        </div>
+                                    </th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">STATUS</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">DELIVERY</th>
+                                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">ACTIONS</th>
                                 </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan={5} className="p-8 text-center text-slate-400">
-                                    No orders found
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {filteredOrders.length > 0 ? (
+                                    filteredOrders.map(order => (
+                                        <tr key={order.id} className="hover:bg-[#F8FAFC] transition-colors bg-white group">
+                                            {/* Order Date */}
+                                            <td className="py-3 px-4 text-center">
+                                                <div className="text-gray-500 text-[13px] font-medium tracking-tight">
+                                                    {order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : 'N/A'}
+                                                </div>
+                                                <div className="text-gray-400 text-xs">
+                                                    {order.createdAt ? new Date(order.createdAt).toTimeString().split(' ')[0] : ''}
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Waybill ID */}
+                                            <td className="py-3 px-4 text-center">
+                                                <span className="text-[#3498DB] font-semibold text-[13px] cursor-pointer hover:underline">
+                                                    {order.trackingNumber}
+                                                </span>
+                                            </td>
+                                            
+                                            {/* Order ID */}
+                                            <td className="py-3 px-4 text-center text-gray-600 text-[13px] font-medium">
+                                                {order.id}
+                                            </td>
+                                            
+                                            {/* Remark */}
+                                            <td className="py-3 px-4 text-center text-gray-400 text-xs font-medium">
+                                                {order.remarks || '-'}
+                                            </td>
+                                            
+                                            {/* Delivery Attempt */}
+                                            <td className="py-3 px-4 text-center">
+                                                <div className="inline-flex items-center justify-center border-2 border-[#2ECC71] rounded text-[#2ECC71] font-bold text-xs px-2 py-0.5 min-w-[28px]">
+                                                    0
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Client ID */}
+                                            <td className="py-3 px-4">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-[#EBF5FB] text-[#3498DB] flex items-center justify-center text-[10px] font-bold">
+                                                        A
+                                                    </div>
+                                                    <span className="text-[#3498DB] text-[13px] font-medium">
+                                                        CLI{(order.clientId || 0).toString().padStart(6, '0')}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Client Name */}
+                                            <td className="py-3 px-4 text-center text-gray-600 text-[13px] font-medium truncate max-w-[200px]">
+                                                {order.clientName || order.client?.businessName || order.client?.ownerName || 'N/A'}
+                                            </td>
+                                            
+                                            {/* Status */}
+                                            <td className="py-3 px-4 text-center">
+                                                <span className="bg-[#3498DB] text-white text-[12px] font-medium px-4 py-1.5 rounded-full inline-block shadow-sm w-28 text-center">
+                                                    {order.status || 'Processing'}
+                                                </span>
+                                            </td>
+                                            
+                                            {/* Delivery */}
+                                            <td className="py-3 px-4 text-center">
+                                                <div className="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-gray-200 text-gray-500 font-bold text-[10px]">
+                                                    0%
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Actions */}
+                                            <td className="py-3 px-4 text-center">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <button 
+                                                        onClick={() => handleTrackClick(order.trackingNumber || order.id.toString())}
+                                                        title="Track Order"
+                                                        className="text-[#1ABC9C] hover:text-[#16A085] transition-colors p-1.5 rounded bg-[#E8F8F5] hover:bg-[#D1F2EB] inline-flex items-center justify-center"
+                                                    >
+                                                        <Eye size={16} strokeWidth={2.5} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => navigate(`/admin/order-details/${order.trackingNumber}`)}
+                                                        title="More Details"
+                                                        className="flex items-center gap-1 text-[#3498DB] hover:text-[#2980B9] transition-colors p-1.5 px-3 rounded bg-[#EBF5FB] hover:bg-[#D6EAF8] text-xs font-bold"
+                                                    >
+                                                        <FileText size={14} /> More Details
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={10} className="py-12 text-center text-gray-400 font-medium">
+                                            No orders found matching your criteria
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             {/* TRACKING MODAL */}
@@ -220,7 +423,7 @@ function AllOrders() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-1">Waybill No</p>
-                                                <p className="font-mono text-lg font-bold text-indigo-900">{selectedTracking.waybillId}</p>
+                                                <p className="font-mono text-lg font-bold text-indigo-900">{selectedTracking.trackingNumber}</p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-1">Current Status</p>
@@ -236,31 +439,13 @@ function AllOrders() {
                                     {/* Timeline */}
                                     <div className="mb-8">
                                         <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6">Tracking Timeline</h4>
-                                        <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                                            {selectedTracking.history?.length > 0 ? (
-                                                selectedTracking.history.map((h, i) => (
-                                                    <div key={h.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                                        <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-indigo-500 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                                                            <MapPin size={16} />
-                                                        </div>
-                                                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <h5 className="font-bold text-slate-800">{h.status}</h5>
-                                                                <time className="text-xs font-medium text-slate-400">{new Date(h.updatedAt).toLocaleString()}</time>
-                                                            </div>
-                                                            {h.location && (
-                                                                <p className="text-sm font-semibold text-indigo-600 mb-1 flex items-center gap-1">
-                                                                    <MapPin size={12} /> {h.location}
-                                                                </p>
-                                                            )}
-                                                            <p className="text-sm text-slate-600">{h.remarks || 'No remarks'}</p>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="text-center py-8 text-slate-500">No tracking history available yet.</div>
-                                            )}
-                                        </div>
+                                        <TrackingTimeline 
+                                            history={selectedTracking.history} 
+                                            createdAt={selectedTracking.createdAt}
+                                            draftStatus={newStatus}
+                                            draftLocation={newLocation}
+                                            draftRemarks={newRemarks}
+                                        />
                                     </div>
 
                                     {/* Update Form */}
@@ -277,7 +462,7 @@ function AllOrders() {
                                                     className="w-full bg-white border border-slate-300 text-slate-700 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium shadow-sm">
                                                     <option value="Picked Up">Picked Up</option>
                                                     <option value="In Transit">In Transit</option>
-                                                    <option value="Arrived at Hub">Arrived at Hub</option>
+                                                    <option value="Arrived at Warehouse">Arrived at Warehouse</option>
                                                     <option value="Out for Delivery">Out for Delivery</option>
                                                     <option value="Delivered">Delivered</option>
                                                     <option value="Cancelled">Cancelled</option>
@@ -321,11 +506,25 @@ function AllOrders() {
                 </div>
             )}
 
-            {/* WAYBILL PRINT MODAL */}
-            <WaybillModal 
-                order={waybillOrder} 
-                isOpen={!!waybillOrder} 
-                onClose={() => setWaybillOrder(null)} 
+            {/* FILTER SIDEBAR */}
+            <FilterSidebar
+                isOpen={isFilterOpen}
+                onClose={() => setIsFilterOpen(false)}
+                filters={filters}
+                setFilters={setFilters}
+                showBranchFilter={true}
+                branches={branches}
+                statusOptions={[
+                    { label: "Pending", value: "Pending" },
+                    { label: "Picked Up", value: "Picked Up" },
+                    { label: "In Transit", value: "In Transit" },
+                    { label: "Arrived at Warehouse", value: "Arrived at Warehouse" },
+                    { label: "Out for Delivery", value: "Out for Delivery" },
+                    { label: "Delivered", value: "Delivered" },
+                    { label: "Failed to Deliver", value: "Failed to Deliver" },
+                    { label: "Returned", value: "Returned" },
+                    { label: "Cancelled", value: "Cancelled" }
+                ]}
             />
         </div>
     );

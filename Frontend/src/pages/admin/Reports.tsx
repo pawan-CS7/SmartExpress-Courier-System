@@ -27,32 +27,21 @@ function Reports() {
         useState<any>(null);
 
 
-    useEffect(() => {
-
-        loadReports();
-
-    }, []);
-
-
-
     const loadReports =
         async () => {
-
             try {
-
                 const data =
                     await getReports();
-
                 setReport(data);
-
             }
             catch (error) {
-
                 console.log(error);
-
             }
-
         };
+
+    useEffect(() => {
+        loadReports();
+    }, []);
 
 
     if (!report)

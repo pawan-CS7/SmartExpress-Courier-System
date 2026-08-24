@@ -21,14 +21,50 @@ namespace Courier.API.Controllers
             _context = context;
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,BranchManager,SortingCenterManager")]
         [HttpGet]
-        public async Task<IActionResult> GetOrders()
+        public async Task<IActionResult> GetOrders([FromQuery] int? branchId, [FromQuery] int? originBranchId, [FromQuery] int? destinationBranchId)
         {
-            var orders = await _context.Orders
-                                .Include(o => o.Client)
-                                .OrderByDescending(o => o.CreatedAt)
-                                .ToListAsync();
+            var roleClaim = User.FindFirst("role")?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value;
+            var userIdClaim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            var query = _context.Orders.Include(o => o.Client).AsQueryable();
+
+            if (roleClaim == "BranchManager")
+            {
+                if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
+                {
+                    var bmUser = await _context.Users.FindAsync(userId);
+                    if (bmUser?.BranchId != null)
+                    {
+                        query = query.Where(o => o.OriginBranchId == bmUser.BranchId || o.DestinationBranchId == bmUser.BranchId);
+                    }
+                    else 
+                    {
+                        return Ok(new List<Order>());
+                    }
+                }
+            }
+            else if (roleClaim == "Admin" || roleClaim == "Owner")
+            {
+                if (branchId.HasValue)
+                {
+                    // Fallback for older frontend calls if needed, though they should be updated to use origin/dest
+                    query = query.Where(o => o.OriginBranchId == branchId.Value || o.DestinationBranchId == branchId.Value);
+                }
+                if (originBranchId.HasValue)
+                {
+                    query = query.Where(o => o.OriginBranchId == originBranchId.Value);
+                }
+                if (destinationBranchId.HasValue)
+                {
+                    query = query.Where(o => o.DestinationBranchId == destinationBranchId.Value);
+                }
+            }
+
+            var orders = await query
+                .OrderByDescending(o => o.CreatedAt)
+                .ToListAsync();
 
             return Ok(orders);
         }
@@ -66,7 +102,7 @@ namespace Courier.API.Controllers
                 .Where(o => o.ClientId == user.ClientId && (o.Status == "Processing" || o.Status == "Pending" || o.Status == "Out"))
                 .Select(o => new {
                     o.Id,
-                    TrackingNo = o.OrderNo,
+                    TrackingNo = o.TrackingNumber,
                     ReceiverName = o.CustomerName,
                     o.Status,
                     ExpectedDate = o.CreatedAt != null ? o.CreatedAt.Value.AddDays(2) : (DateTime?)null
@@ -90,6 +126,9 @@ namespace Courier.API.Controllers
                 if (user == null) return Unauthorized(new { message = "User not found in database." });
                 if (user.ClientId == null) return Unauthorized(new { message = "User is not mapped to a Client." });
 
+                var client = await _context.Clients.FindAsync(user.ClientId);
+                if (client == null) return Unauthorized(new { message = "Client record not found." });
+
                 // Check if Waybill belongs to this client and is valid
                 var waybill = await _context.Waybills
                     .FirstOrDefaultAsync(w => w.Barcode == dto.WaybillId && w.ClientId == user.ClientId);
@@ -106,16 +145,16 @@ namespace Courier.API.Controllers
 
                 var order = new Order
                 {
-                    WaybillId = dto.WaybillId,
-                    OrderNo = $"TRK-{DateTime.Now.Ticks.ToString().Substring(8, 6)}",
+                    TrackingNumber = dto.WaybillId,
                     ClientId = user.ClientId,
                     CustomerName = dto.CustomerName,
                     Phone1 = dto.Phone1,
                     Address = dto.Address,
                     CODAmount = dto.CODAmount,
-                    Status = "Pending",
+                    Status = "Processing",
                     Remarks = dto.Weight, // Store weight in remarks for now
-                    CreatedAt = DateTime.UtcNow
+                    OriginBranchId = client.BranchId,
+                    CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
                 };
 
                 _context.Orders.Add(order);
@@ -125,7 +164,58 @@ namespace Courier.API.Controllers
 
                 await _context.SaveChangesAsync();
 
-                return Ok(new { message = "Order created successfully", orderNo = order.OrderNo });
+                var history = new OrderStatusHistory
+                {
+                    OrderId = order.Id,
+                    Status = "Processing",
+                    UpdatedBy = int.Parse(userIdString),
+                    UpdatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                };
+                _context.OrderStatusHistory.Add(history);
+                await _context.SaveChangesAsync();
+
+                // Send to all Admins & Owners
+                var adminIds = await _context.Users
+                    .Where(u => u.Role == "Admin" || u.Role == "Owner")
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                foreach (var adminId in adminIds)
+                {
+                    _context.Notifications.Add(new Notification
+                    {
+                        Category = "New Order",
+                        Message = $"{user.Name ?? "A Client"} created a new order ({order.TrackingNumber}) to {order.CustomerName}.",
+                        TargetId = adminId,
+                        IsRead = false,
+                        CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                    });
+                }
+
+                // Send to the assigned Branch Manager
+                if (client.BranchId != null)
+                {
+                    var branchManagers = await _context.Users
+                        .Where(u => u.BranchId == client.BranchId && u.Role == "BranchManager")
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    foreach (var bmId in branchManagers)
+                    {
+                        _context.Notifications.Add(new Notification
+                        {
+                            Category = "New Order",
+                            Message = $"{user.Name ?? "A Client"} in your branch created a new order ({order.TrackingNumber}) to {order.CustomerName}.",
+                            TargetId = bmId,
+                            IsRead = false,
+                            CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Order created successfully", trackingNumber = order.TrackingNumber });
             }
             catch (Exception ex)
             {
@@ -144,6 +234,9 @@ namespace Courier.API.Controllers
 
             var user = await _context.Users.FindAsync(int.Parse(userIdString));
             if (user == null || user.ClientId == null) return Unauthorized(new { message = "User is not mapped to a Client." });
+
+            var client = await _context.Clients.FindAsync(user.ClientId);
+            if (client == null) return Unauthorized(new { message = "Client record not found." });
 
             var records = new List<OrderCreateDto>();
             try
@@ -189,16 +282,16 @@ namespace Courier.API.Controllers
 
                 var order = new Order
                 {
-                    WaybillId = waybill.Barcode,
-                    OrderNo = $"TRK-{DateTime.Now.Ticks.ToString().Substring(8, 6)}-{i}", 
+                    TrackingNumber = waybill.Barcode,
                     ClientId = user.ClientId,
                     CustomerName = record.CustomerName,
                     Phone1 = record.Phone1,
                     Address = record.Address,
                     CODAmount = record.CODAmount,
-                    Status = "Pending",
+                    Status = "Processing",
                     Remarks = record.Weight,
-                    CreatedAt = DateTime.UtcNow
+                    OriginBranchId = client.BranchId,
+                    CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
                 };
 
                 orders.Add(order);
@@ -206,6 +299,57 @@ namespace Courier.API.Controllers
             }
 
             _context.Orders.AddRange(orders);
+            await _context.SaveChangesAsync();
+
+            var historyEntries = orders.Select(o => new OrderStatusHistory
+            {
+                OrderId = o.Id,
+                Status = "Processing",
+                UpdatedBy = int.Parse(userIdString),
+                UpdatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+            }).ToList();
+            _context.OrderStatusHistory.AddRange(historyEntries);
+            await _context.SaveChangesAsync();
+
+            // Send to all Admins & Owners
+            var adminIds = await _context.Users
+                .Where(u => u.Role == "Admin" || u.Role == "Owner")
+                .Select(u => u.Id)
+                .ToListAsync();
+
+            foreach (var adminId in adminIds)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    Category = "New Order",
+                    Message = $"{user.Name ?? "A Client"} created {orders.Count} orders in bulk.",
+                    TargetId = adminId,
+                    IsRead = false,
+                    CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                });
+            }
+
+            // Send to the assigned Branch Manager
+            if (client.BranchId != null)
+            {
+                var branchManagers = await _context.Users
+                    .Where(u => u.BranchId == client.BranchId && u.Role == "BranchManager")
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                foreach (var bmId in branchManagers)
+                {
+                    _context.Notifications.Add(new Notification
+                    {
+                        Category = "New Order",
+                        Message = $"{user.Name ?? "A Client"} in your branch created {orders.Count} orders in bulk.",
+                        TargetId = bmId,
+                        IsRead = false,
+                        CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                    });
+                }
+            }
+
             await _context.SaveChangesAsync();
 
             return Ok(new { message = $"Successfully created {orders.Count} orders automatically mapped with your available barcodes." });
@@ -243,6 +387,47 @@ namespace Courier.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Order updated successfully.", order });
+        }
+        [Authorize(Roles = "Admin,BranchManager")]
+        [HttpPost("{trackingNumber}/assign-rider")]
+        public async Task<IActionResult> AssignRider(string trackingNumber, [FromBody] int riderId)
+        {
+            var userIdString = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var roleClaim = User.FindFirst("role")?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value;
+
+            var order = await _context.Orders.FirstOrDefaultAsync(o => o.TrackingNumber == trackingNumber);
+            if (order == null) return NotFound(new { message = "Order not found." });
+
+            var rider = await _context.Riders.FindAsync(riderId);
+            if (rider == null) return NotFound(new { message = "Rider not found." });
+
+            if (roleClaim == "BranchManager")
+            {
+                var bmUser = await _context.Users.FindAsync(int.Parse(userIdString));
+                if (bmUser?.BranchId == null || bmUser.BranchId != rider.BranchId)
+                {
+                    return Forbid();
+                }
+            }
+
+            order.AssignedRiderId = rider.Id;
+            order.Status = "Out for Delivery";
+            order.StatusChangedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime();
+
+            var history = new OrderStatusHistory
+            {
+                OrderId = order.Id,
+                Status = "Out for Delivery",
+                Location = "Branch",
+                Remarks = $"Assigned to rider {rider.Name} ({rider.RiderId})",
+                UpdatedBy = int.Parse(userIdString ?? "0"),
+                UpdatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+            };
+            _context.OrderStatusHistory.Add(history);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Rider assigned successfully." });
         }
     }
 }

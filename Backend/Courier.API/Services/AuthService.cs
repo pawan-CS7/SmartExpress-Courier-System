@@ -1,4 +1,4 @@
-﻿using Courier.API;
+using Courier.API;
 using Courier.API.DTOs;
 using Courier.API.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -46,7 +46,8 @@ public class AuthService
         {
             token = accessToken,
             refreshToken = refreshToken,
-            role = user.Role
+            role = user.Role,
+            name = user.Name
         };
     }
 
@@ -59,6 +60,8 @@ public class AuthService
             new Claim("userId", user.Id.ToString()),
             new Claim(ClaimTypes.Role, user.Role),
             new Claim("role", user.Role),
+            new Claim(ClaimTypes.Name, user.Name ?? ""),
+            new Claim("name", user.Name ?? ""),
             new Claim(ClaimTypes.Email, user.Email ?? ""),
             new Claim("email", user.Email ?? ""),
             new Claim("clientId", user.ClientId?.ToString() ?? ""),

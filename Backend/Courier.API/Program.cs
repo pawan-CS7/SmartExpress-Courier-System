@@ -69,6 +69,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddScoped<UserService>();   
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<ITrackingNumberService, TrackingNumberService>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
@@ -98,6 +99,34 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var admin = context.Users.FirstOrDefault(u => u.Email == "admin@gmail.com");
+    if (admin != null)
+    {
+        admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123");
+        admin.Role = "Admin";
+        admin.IsActive = true;
+        context.SaveChanges();
+    }
+    else
+    {
+        context.Users.Add(new Courier.API.Entities.User
+        {
+            Name = "Admin",
+            Email = "admin@gmail.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+            Role = "Admin",
+            Phone = "0771234567",
+            NIC = "123456789V",
+            Address = "Head Office",
+            IsActive = true
+        });
+        context.SaveChanges();
+    }
+}
 
 app.MapControllers();
 

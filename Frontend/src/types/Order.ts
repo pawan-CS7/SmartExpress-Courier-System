@@ -1,8 +1,6 @@
 export interface Order {
     id: number;
-    trackingNo?: string;
-    orderNo?: string;
-    waybillId?: string;
+    trackingNumber?: string;
     clientId?: number;
     clientName?: string;
     client?: {
@@ -24,6 +22,10 @@ export interface Order {
     codAmount?: number;
     status?: string;
     remarks?: string;
+    originBranchId?: number;
+    destinationBranchId?: number;
+    currentBranchId?: number;
     createdAt?: string;
     createdDate?: string;
+    statusChangedAt?: string;
 }

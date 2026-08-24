@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../../services/api";
 
@@ -11,6 +11,18 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ REDIRECT IF ALREADY LOGGED IN
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("role");
+    if (token && role) {
+      if (role === "Admin" || role === "BranchManager") navigate("/admin/dashboard", { replace: true });
+      else if (role === "Client") navigate("/client/dashboard", { replace: true });
+      else if (role === "SortingCenterManager") navigate("/sorting/dashboard", { replace: true });
+      else if (role === "Rider") navigate("/rider/pending", { replace: true });
+    }
+  }, [navigate]);
+
   // ✅ LOGIN HANDLER
   const handleLogin = async () => {
 
@@ -19,8 +31,10 @@ function Login() {
     console.log("API URL:", api.defaults.baseURL);
     console.log(import.meta.env.VITE_API_BASE_URL);
 
+    const trimmedEmail = email.trim();
+
     // 🔹 Empty validation
-    if (!email || !password) {
+    if (!trimmedEmail || !password) {
       setError("Please enter both email and password");
       return;
     }
@@ -28,7 +42,7 @@ function Login() {
     // 🔹 Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(trimmedEmail)) {
       setError("Please enter a valid email");
       return;
     }
@@ -38,7 +52,7 @@ function Login() {
       setLoading(true);
 
       const res = await api.post("/api/Auth/login", {
-        email,
+        email: trimmedEmail,
         password,
       });
 
@@ -47,17 +61,27 @@ function Login() {
       // ✅ Save token
       localStorage.setItem("token", res.data.token);
 
-      // ✅ Save role
-      localStorage.setItem("role", res.data.role);
+      // ✅ Save role & name
+      const role = res.data.role?.trim() || "";
+      localStorage.setItem("role", role);
+      if (res.data.name) {
+        localStorage.setItem("userName", res.data.name);
+      }
 
-      console.log("ROLE:", res.data.role);
+      console.log("ROLE:", role);
 
       // ✅ Redirect by role
-      if (res.data.role === "Admin") {
-        navigate("/admin/dashboard");
+      if (role === "Admin" || role === "BranchManager") {
+        navigate("/admin/dashboard", { replace: true });
       }
-      else if (res.data.role === "Client") {
-        navigate("/client/dashboard");
+      else if (role === "Client") {
+        navigate("/client/dashboard", { replace: true });
+      }
+      else if (role === "SortingCenterManager") {
+        navigate("/sorting/dashboard", { replace: true });
+      }
+      else if (role === "Rider") {
+        navigate("/rider/pending", { replace: true });
       }
       else {
         setError("Unknown user role");
@@ -139,53 +163,44 @@ function Login() {
           )}
 
           {/* EMAIL */}
-          <div className="relative mb-5">
-
+          <div className="relative mb-6">
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="peer w-full p-3 border border-gray-200 rounded-xl bg-transparent focus:ring-2 focus:ring-red-400 outline-none"
+              className="peer w-full p-3.5 border-2 border-gray-100 rounded-xl bg-gray-50 focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 transition-all outline-none"
+              placeholder=" "
             />
-
-            <label className="absolute left-3 top-3 text-gray-400 text-sm transition-all 
-            peer-focus:-top-2 peer-focus:text-xs peer-focus:text-red-500 
-            peer-valid:-top-2 peer-valid:text-xs bg-transparent px-1">
-
-              Email
-
+            <label className="absolute left-4 top-3.5 text-gray-400 text-sm transition-all pointer-events-none
+            peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-red-500 peer-focus:bg-white peer-focus:px-2
+            peer-[&:not(:placeholder-shown)]:-top-2.5 peer-[&:not(:placeholder-shown)]:text-xs peer-[&:not(:placeholder-shown)]:bg-white peer-[&:not(:placeholder-shown)]:px-2">
+              Email Address
             </label>
-
           </div>
 
           {/* PASSWORD */}
-          <div className="relative mb-5">
-
+          <div className="relative mb-6">
             <input
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="peer w-full p-3 border border-gray-200 rounded-xl bg-transparent focus:ring-2 focus:ring-red-400 outline-none"
+              className="peer w-full p-3.5 border-2 border-gray-100 rounded-xl bg-gray-50 focus:bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 transition-all outline-none pr-12"
+              placeholder=" "
             />
-
-            <label className="absolute left-3 top-3 text-gray-400 text-sm transition-all 
-            peer-focus:-top-2 peer-focus:text-xs peer-focus:text-red-500 
-            peer-valid:-top-2 peer-valid:text-xs bg-transparent px-1">
-
+            <label className="absolute left-4 top-3.5 text-gray-400 text-sm transition-all pointer-events-none
+            peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-red-500 peer-focus:bg-white peer-focus:px-2
+            peer-[&:not(:placeholder-shown)]:-top-2.5 peer-[&:not(:placeholder-shown)]:text-xs peer-[&:not(:placeholder-shown)]:bg-white peer-[&:not(:placeholder-shown)]:px-2">
               Password
-
             </label>
-
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-3 text-gray-400 hover:text-gray-600"
+              className="absolute right-4 top-3.5 text-gray-400 hover:text-red-500 transition-colors"
             >
-              👁 
+              {showPassword ? "🙈" : "👁"}
             </button>
-
           </div>
 
           {/* OPTIONS */}
@@ -209,11 +224,14 @@ function Login() {
           <button
             onClick={handleLogin}
             disabled={loading || !email || !password}
-            className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 shadow-lg"
+            className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white py-3.5 rounded-xl font-bold text-lg transition-all duration-300 hover:shadow-[0_8px_30px_rgb(239,68,68,0.3)] hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
           >
-
-            {loading ? "Logging in..." : "Login"}
-
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                Authenticating...
+              </span>
+            ) : "Login"}
           </button>
 
           {/* REGISTER */}

@@ -92,7 +92,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, isOpen, o
                             <User className="text-indigo-600" size={22} /> Edit Order Details
                         </h3>
                         <p className="text-xs text-slate-500 font-mono mt-0.5">
-                            Tracking No: <span className="font-bold text-indigo-600">{order.orderNo || order.waybillId || order.id}</span>
+                            Tracking No: <span className="font-bold text-indigo-600">{order.trackingNumber || order.id}</span>
                         </p>
                     </div>
                     <button 

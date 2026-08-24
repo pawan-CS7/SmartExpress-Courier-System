@@ -39,6 +39,20 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("reset-colomboc")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetColomboc()
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == "colomboc@gmail.com");
+        if (user != null)
+        {
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Colomboc123");
+            await _context.SaveChangesAsync();
+            return Ok("Password reset to Colomboc123");
+        }
+        return NotFound("User not found");
+    }
+
     // ========================= REGISTER CLIENT =========================
     [HttpPost("register-client")]
     public async Task<IActionResult> RegisterClient([FromBody] ClientRegistrationDto dto)
@@ -52,9 +66,21 @@ public class AuthController : ControllerBase
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            int maxClientId = await _context.Users.MaxAsync(u => (int?)u.ClientId) ?? 0;
-            int newClientId = maxClientId < 1000 ? 1001 : maxClientId + 1;
-
+            var newClient = new Courier.API.Entities.Client
+            {
+                BusinessName = dto.Name ?? "",
+                OwnerName = dto.Name ?? "",
+                Email = dto.Email ?? "",
+                Phone = dto.Phone ?? "",
+                Address = dto.Address ?? "",
+                NIC = dto.NIC ?? "",
+                IsActive = true,
+                CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime(),
+                BranchId = dto.BranchId
+            };
+            _context.Clients.Add(newClient);
+            await _context.SaveChangesAsync();
+            
             var newUser = new DBUser
             {
                 Name = dto.Name,
@@ -64,42 +90,53 @@ public class AuthController : ControllerBase
                 Address = dto.Address,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Role = "Client",
-                BranchId = 0,
-                ClientId = newClientId, 
+                BranchId = dto.BranchId,
+                ClientId = newClient.Id, 
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
             };
 
             _context.Users.Add(newUser);
-            await _context.SaveChangesAsync(); 
-
-            await _context.Database.ExecuteSqlRawAsync(
-                "UPDATE Users SET ClientId = {0} WHERE Id = {1}", 
-                newClientId, 
-                newUser.Id
-            );
-
-            // FIX: Also insert into Clients table to prevent Foreign Key constraint errors on Orders
-            try 
-            {
-                await _context.Database.ExecuteSqlRawAsync(
-                    "SET IDENTITY_INSERT Clients ON; " +
-                    "INSERT INTO Clients (Id, BusinessName, OwnerName, Email, Phone, Address, NIC, IsActive, CreatedAt) " +
-                    "VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, 1, GETUTCDATE()); " +
-                    "SET IDENTITY_INSERT Clients OFF;", 
-                    newClientId, dto.Name, dto.Name, dto.Email, dto.Phone, dto.Address, dto.NIC);
-            } 
-            catch 
-            {
-                // Fallback in case Id is not an IDENTITY column
-                await _context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO Clients (Id, BusinessName, OwnerName, Email, Phone, Address, NIC, IsActive, CreatedAt) " +
-                    "VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, 1, GETUTCDATE());", 
-                    newClientId, dto.Name, dto.Name, dto.Email, dto.Phone, dto.Address, dto.NIC);
-            }
+            await _context.SaveChangesAsync();
 
             await transaction.CommitAsync();
-            return Ok(new { message = "Client registered successfully", clientId = newClientId });
+
+            // Find Admin user
+            var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "Admin");
+            if (adminUser != null) 
+            {
+                _context.Notifications.Add(new Courier.API.Entities.Notification
+                {
+                    Category = "New User",
+                    Message = $"{dto.Name} ({dto.Email}) has just registered as a new client.",
+                    TargetId = adminUser.Id, // Link to Admin User ID
+                    IsRead = false,
+                    CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                });
+            }
+
+            // Add notification for Branch Manager if assigned to a branch
+            if (dto.BranchId.HasValue && dto.BranchId.Value > 0)
+            {
+                var branchManager = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Role == "BranchManager" && u.BranchId == dto.BranchId.Value);
+                
+                if (branchManager != null)
+                {
+                    _context.Notifications.Add(new Courier.API.Entities.Notification
+                    {
+                        Category = "New Client Branch",
+                        Message = $"A new client {dto.Name} has registered under your branch.",
+                        TargetId = branchManager.Id, // Notify the branch manager
+                        IsRead = false,
+                        CreatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Client registered successfully", clientId = newClient.Id });
         }
         catch (Exception ex)
         {
@@ -278,4 +315,5 @@ public class ClientRegistrationDto
     public string Phone { get; set; }
     public string NIC { get; set; }
     public string Address { get; set; }
+    public int? BranchId { get; set; }
 }

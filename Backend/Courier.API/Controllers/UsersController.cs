@@ -1,4 +1,4 @@
-﻿using Courier.API.DTOs;
+using Courier.API.DTOs;
 using Courier.API.Services;
 using Courier.API.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -27,11 +27,21 @@ namespace Courier.API.Controllers
             return Ok(user);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,BranchManager")]
         [HttpGet]
         public async Task<IActionResult> GetAllUsers()
         {
-            var users = await _context.Users
+            var userRole = User.FindFirst("http://schemas.microsoft.com/ws/2008/06/identity/claims/role")?.Value ?? User.FindFirst("role")?.Value;
+            var branchIdClaim = User.FindFirst("branchId")?.Value;
+
+            var query = _context.Users.AsQueryable();
+
+            if (userRole == "BranchManager" && int.TryParse(branchIdClaim, out int bId))
+            {
+                query = query.Where(u => u.BranchId == bId);
+            }
+
+            var users = await query
                 .Select(u => new
                 {
                     u.Id,
@@ -41,6 +51,7 @@ namespace Courier.API.Controllers
                     u.NIC,
                     u.Address,
                     u.Role,
+                    u.BranchId,
                     u.IsActive,
                     u.CreatedAt
                 })
@@ -72,6 +83,27 @@ namespace Courier.API.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "User updated successfully" });
         }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPut("update-branch/{id}")]
+        public async Task<IActionResult> UpdateUserBranch(int id, [FromBody] UpdateBranchDto dto)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            user.BranchId = dto.BranchId;
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "User branch updated successfully" });
+        }
+    }
+
+    public class UpdateBranchDto
+    {
+        public int? BranchId { get; set; }
     }
 
     public class UpdateRoleDto

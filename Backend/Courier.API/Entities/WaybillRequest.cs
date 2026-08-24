@@ -1,4 +1,4 @@
-﻿namespace Courier.API.Entities
+namespace Courier.API.Entities
 {
     public class WaybillRequest
     {
@@ -16,7 +16,7 @@
 
         public string Status { get; set; } = "Pending"; // Pending, Done
 
-        public DateTime RequestedDate { get; set; } = DateTime.UtcNow;
+        public DateTime RequestedDate { get; set; } = Courier.API.Utils.TimeUtil.GetSriLankaTime();
 
         public DateTime? ConfirmDate { get; set; }
     }

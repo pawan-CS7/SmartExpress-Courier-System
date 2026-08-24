@@ -24,7 +24,7 @@ function Invoices() {
     };
 
     const filtered = invoices.filter(x =>
-        x.trackingNo?.toLowerCase().includes(search.toLowerCase())
+        x.trackingNumber?.toLowerCase().includes(search.toLowerCase())
     );
 
     const totalAmount = invoices.reduce((acc, curr) => acc + (curr.amount || 0), 0);
@@ -105,7 +105,7 @@ function Invoices() {
                             filtered.map(invoice => (
                                 <tr key={invoice.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="p-5 font-mono font-medium text-slate-700">
-                                        {invoice.trackingNo || `INV-${invoice.id.toString().padStart(5, '0')}`}
+                                        {invoice.trackingNumber || `INV-${invoice.id.toString().padStart(5, '0')}`}
                                     </td>
                                     <td className="font-bold text-slate-800">
                                         Rs. {invoice.amount ? invoice.amount.toFixed(2) : (invoice.finalAmount ? invoice.finalAmount.toFixed(2) : "0.00")}

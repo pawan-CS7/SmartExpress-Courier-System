@@ -1,8 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getUserRole } from "../../utils/auth";
 
 function ClientNavbar() {
   const role = getUserRole();
+  const navigate = useNavigate();
 
   return (
     <div className="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm">
@@ -32,8 +33,12 @@ function ClientNavbar() {
         <button
           className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-lg text-sm transition"
           onClick={() => {
-            localStorage.removeItem("token");
-            window.location.href = "/";
+            if (window.confirm("Are you sure you want to log out?")) {
+              localStorage.removeItem("token");
+              localStorage.removeItem("role");
+              localStorage.removeItem("userName");
+              navigate("/login");
+            }
           }}
         >
           Logout

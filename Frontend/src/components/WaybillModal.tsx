@@ -1,6 +1,6 @@
 import React from "react";
 import QRCode from "react-qr-code";
-import { X, Printer, Package, Truck, Phone, MapPin, Calendar, DollarSign } from "lucide-react";
+import { X, Printer, Package, Truck, Phone, MapPin } from "lucide-react";
 import type { Order } from "../types/Order";
 
 interface WaybillModalProps {
@@ -12,7 +12,7 @@ interface WaybillModalProps {
 export const WaybillModal: React.FC<WaybillModalProps> = ({ order, isOpen, onClose }) => {
     if (!isOpen || !order) return null;
 
-    const trackingNumber = order.waybillId || order.orderNo || order.trackingNo || `TRK-${order.id}`;
+    const trackingNumber = order.trackingNumber || `TRK-${order.id}`;
     const formattedDate = order.createdAt 
         ? new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
         : order.createdDate || new Date().toLocaleDateString();
@@ -113,7 +113,7 @@ export const WaybillModal: React.FC<WaybillModalProps> = ({ order, isOpen, onClo
                                     {order.client?.businessName || order.client?.ownerName || order.senderName || "SmartExpress Merchant"}
                                 </p>
                                 <p className="text-slate-600 mt-0.5 leading-snug">
-                                    {order.client?.pickupAddress || order.client?.address || order.pickupAddress || "Pickup Hub Location"}
+                                    {order.client?.pickupAddress || order.client?.address || order.pickupAddress || "Pickup Warehouse Location"}
                                 </p>
                                 {order.client?.phone && (
                                     <p className="text-slate-600 font-medium mt-1 flex items-center gap-1">

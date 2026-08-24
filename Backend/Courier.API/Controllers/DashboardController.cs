@@ -60,9 +60,9 @@ namespace Courier.API.Controllers
             var result = new
             {
                 Processing = orders.Count(o => o.Status == "Processing" || o.Status == "Pending"),
-                Dispatched = orders.Count(o => o.Status == "Dispatched to Destination" || o.Status == "Dispatched"),
+                Dispatched = orders.Count(o => o.Status == "Dispatched to Destination Branch" || o.Status == "Dispatched"),
                 Collected = orders.Count(o => o.Status == "Collected from Warehouse" || o.Status == "Collected"),
-                ReceivedDestination = orders.Count(o => o.Status == "Received at Destination"),
+                ReceivedDestination = orders.Count(o => o.Status == "Received at Destination Branch"),
                 OutForDelivery = orders.Count(o => o.Status == "Out for Delivery" || o.Status == "Out"),
                 Rescheduled = orders.Count(o => o.Status == "Rescheduled"),
                 FailedToDeliver = orders.Count(o => o.Status == "Failed to Deliver" || o.Status == "Failed"),

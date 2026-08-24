@@ -26,22 +26,33 @@ namespace Courier.API.Controllers
             var roleClaim = User.FindFirst("role")?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value;
 
             var order = await _context.Orders
-                .FirstOrDefaultAsync(o => o.WaybillId == trackingNo || o.OrderNo == trackingNo);
+                .FirstOrDefaultAsync(o => o.TrackingNumber == trackingNo);
 
             if (order == null)
             {
                 return NotFound(new { message = "Order not found." });
             }
 
-            // Security check for clients
+            // Security check for clients and branch managers
             if (roleClaim != "Admin" && !User.IsInRole("Admin"))
             {
                 if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
                 {
                     var user = await _context.Users.FindAsync(userId);
-                    if (user == null || order.ClientId != (user.ClientId ?? 0))
+                    
+                    if (roleClaim == "BranchManager")
                     {
-                        return Forbid();
+                        if (order.OriginBranchId != user.BranchId && order.DestinationBranchId != user.BranchId)
+                        {
+                            return Forbid();
+                        }
+                    }
+                    else // Client
+                    {
+                        if (user == null || order.ClientId != (user.ClientId ?? 0))
+                        {
+                            return Forbid();
+                        }
                     }
                 }
                 else
@@ -55,11 +66,13 @@ namespace Courier.API.Controllers
                 .OrderByDescending(h => h.UpdatedAt)
                 .ToListAsync();
 
+            var userIds = history.Where(h => h.UpdatedBy != null).Select(h => h.UpdatedBy.Value).Distinct().ToList();
+            var users = await _context.Users.Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Name ?? u.Email);
+
             var result = new OrderTrackingDto
             {
                 OrderId = order.Id,
-                WaybillId = order.WaybillId,
-                OrderNo = order.OrderNo,
+                TrackingNumber = order.TrackingNumber,
                 CustomerName = order.CustomerName,
                 Status = order.Status,
                 CreatedAt = order.CreatedAt,
@@ -71,14 +84,14 @@ namespace Courier.API.Controllers
                     Location = h.Location,
                     Remarks = h.Remarks,
                     UpdatedAt = h.UpdatedAt,
-                    UpdatedBy = h.UpdatedBy?.ToString()
+                    UpdatedBy = h.UpdatedBy.HasValue && users.ContainsKey(h.UpdatedBy.Value) ? users[h.UpdatedBy.Value] : (h.UpdatedBy.HasValue ? h.UpdatedBy.ToString() : "System")
                 }).ToList()
             };
 
             return Ok(result);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,BranchManager,SortingCenterManager")]
         [HttpPost("{orderId}")]
         public async Task<IActionResult> UpdateTracking(int orderId, [FromBody] UpdateTrackingDto dto)
         {
@@ -93,11 +106,31 @@ namespace Courier.API.Controllers
                 return NotFound(new { message = "Order not found." });
             }
 
+            var alreadyExists = await _context.OrderStatusHistory
+                .AnyAsync(h => h.OrderId == orderId && h.Status == dto.Status);
+
+            if (alreadyExists)
+            {
+                return BadRequest(new { message = $"Order already has a '{dto.Status}' record in its history. Cannot duplicate this tracking update." });
+            }
+
+            var roleClaim = User.FindFirst("role")?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value;
             var userIdClaim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             int? updatedBy = null;
+            User user = null;
+
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int parsedUserId))
             {
                 updatedBy = parsedUserId;
+                user = await _context.Users.FindAsync(parsedUserId);
+                
+                if (roleClaim == "BranchManager" && user != null)
+                {
+                    if (order.OriginBranchId != user.BranchId && order.DestinationBranchId != user.BranchId)
+                    {
+                        return Forbid();
+                    }
+                }
             }
 
             var newHistory = new OrderStatusHistory
@@ -107,17 +140,22 @@ namespace Courier.API.Controllers
                 Location = dto.Location,
                 Remarks = dto.Remarks,
                 UpdatedBy = updatedBy,
-                UpdatedAt = DateTime.Now
+                UpdatedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime()
             };
 
             _context.OrderStatusHistory.Add(newHistory);
 
             order.Status = dto.Status;
-            order.StatusChangedAt = DateTime.Now;
+            order.StatusChangedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime();
+
+            if (roleClaim == "BranchManager" && user != null)
+            {
+                order.CurrentBranchId = user.BranchId;
+            }
 
             if (dto.Status == "Delivered")
             {
-                order.CompletedAt = DateTime.Now;
+                order.CompletedAt = Courier.API.Utils.TimeUtil.GetSriLankaTime();
             }
 
             await _context.SaveChangesAsync();

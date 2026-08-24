@@ -11,8 +11,7 @@ export interface TrackingHistory {
 
 export interface OrderTracking {
     orderId: number;
-    waybillId: string;
-    orderNo: string;
+    trackingNumber: string;
     customerName: string;
     status: string;
     createdAt: string;
@@ -20,8 +19,8 @@ export interface OrderTracking {
     history: TrackingHistory[];
 }
 
-export const getTrackingInfo = async (trackingNo: string): Promise<OrderTracking> => {
-    const response = await api.get(`/api/tracking/${trackingNo}`);
+export const getTrackingInfo = async (trackingNumber: string): Promise<OrderTracking> => {
+    const response = await api.get(`/api/tracking/${trackingNumber}`);
     return response.data;
 };
 

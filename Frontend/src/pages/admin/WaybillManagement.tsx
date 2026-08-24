@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import api from "../../services/api";
-import { Eye, X, Building, Phone, Mail, MapPin, CreditCard } from "lucide-react";
+import { Eye, X, Building, Phone, Mail, MapPin, CreditCard, Filter } from "lucide-react";
+import FilterSidebar, { type FilterState } from "../../components/FilterSidebar";
+import { branchService } from "../../services/branchService";
+import type { Branch } from "../../types/branch";
+import { getCurrentUser } from "../../utils/auth";
 
 interface WaybillRequest {
   id: number;
@@ -36,22 +41,72 @@ interface ClientDetails {
 }
 
 function WaybillManagement() {
+  const user = getCurrentUser();
+  const isAdmin = user.role === "Admin" || user.role === "Owner";
+
   const [requests, setRequests] = useState<WaybillRequest[]>([]);
   const [waybills, setWaybills] = useState<Waybill[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [filters, setFilters] = useState<FilterState>(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    return {
+      search: queryParams.get("search") || "",
+      statuses: [],
+      startDate: "",
+      endDate: "",
+      branchId: queryParams.get("branchId") || "",
+      originBranchId: "",
+      destinationBranchId: ""
+    };
+  });
   
   const [selectedClient, setSelectedClient] = useState<ClientDetails | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
 
+  const location = useLocation();
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const hId = queryParams.get("highlightId");
+    if (hId) {
+        const id = Number(hId);
+        setHighlightId(id);
+        setTimeout(() => {
+            const element = document.getElementById(`waybill-row-${id}`);
+            if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        }, 500);
+        setTimeout(() => {
+            setHighlightId(null);
+        }, 3500);
+    }
+  }, [location.search, requests]);
+
+  const queryParams = new URLSearchParams(location.search);
+  const branchId = queryParams.get("branchId");
+
+  useEffect(() => {
+    if (branchId && branchId !== filters.branchId) {
+        setFilters(prev => ({ ...prev, branchId: branchId }));
+    }
+    branchService.getBranches().then(data => setBranches(data)).catch(console.error);
+  }, [branchId]);
+
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      const queryParamsString = filters.branchId ? `?branchId=${filters.branchId}` : '';
 
-      const requestsResponse = await api.get("/api/Waybill");
+      const requestsResponse = await api.get(`/api/Waybill${queryParamsString}`);
       setRequests(requestsResponse.data);
 
       try {
-        const waybillsResponse = await api.get("/api/Waybill/all-barcodes");
+        const waybillsResponse = await api.get(`/api/Waybill/all-barcodes${queryParamsString}`);
         setWaybills(waybillsResponse.data);
       } catch {
         setWaybills([]);
@@ -66,16 +121,17 @@ function WaybillManagement() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [filters.branchId]);
 
   const approveRequest = async (id: number) => {
     try {
-      const response = await api.post(`/api/Waybill/approve/${id}`);
+      await api.post(`/api/Waybill/approve/${id}`);
       alert("Waybills generated successfully");
       loadData();
     } catch (error: any) {
       console.error("FULL ERROR:", error);
-      alert("Failed to approve request");
+      const errorMsg = error.response?.data?.message || "Failed to approve request";
+      alert(errorMsg);
     }
   };
 
@@ -94,14 +150,70 @@ function WaybillManagement() {
     }
   };
 
-  const pendingCount = requests.filter((x) => x.status === "Pending").length;
-  const completedCount = requests.filter((x) => x.status === "Done").length;
+  const filteredRequests = requests.filter(x => {
+      const matchSearch = (x.clientName || "").toLowerCase().includes(filters.search.toLowerCase()) || 
+                          x.clientId.toString().includes(filters.search);
+      
+      const matchStatus = filters.statuses.length === 0 || filters.statuses.includes(x.status);
+      
+      const requestDate = new Date(x.requestedDate);
+      const matchStartDate = !filters.startDate || requestDate >= new Date(filters.startDate);
+      
+      let matchEndDate = true;
+      if (filters.endDate) {
+          const endDate = new Date(filters.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          matchEndDate = requestDate <= endDate;
+      }
+
+      return matchSearch && matchStatus && matchStartDate && matchEndDate;
+  });
+
+  const pendingCount = filteredRequests.filter((x) => x.status === "Pending").length;
+  const completedCount = filteredRequests.filter((x) => x.status === "Done").length;
+
+  const hasActiveFilters = filters.search !== '' || filters.statuses.length > 0 || filters.startDate !== '' || filters.endDate !== '' || (filters.branchId && filters.branchId !== '');
+
+  const clearFilters = () => {
+      setFilters({
+          search: '',
+          statuses: [],
+          startDate: '',
+          endDate: '',
+          branchId: '',
+          originBranchId: '',
+          destinationBranchId: ''
+      });
+  };
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800">Waybill Management</h1>
-        <p className="text-slate-500 mt-2">Manage client barcode requests and allocations</p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800">
+              {branchId ? "Branch Waybill Management" : "Waybill Management"}
+          </h1>
+          <p className="text-slate-500 mt-2">
+              {branchId ? "Manage client barcode requests for this specific branch" : "Manage all client barcode requests and allocations"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+            <button 
+                onClick={() => setIsFilterOpen(true)}
+                className={`relative bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 px-6 py-3 rounded-lg font-bold transition-all shadow-sm flex items-center gap-2 ${hasActiveFilters ? 'ring-2 ring-indigo-500' : ''}`}
+            >
+                <Filter size={18} /> Advanced Search
+                {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-indigo-500 absolute top-2 right-2"></span>}
+            </button>
+            {hasActiveFilters && (
+                <button 
+                    onClick={clearFilters}
+                    className="bg-red-50 border border-red-100 hover:bg-red-100 text-red-600 px-4 py-3 rounded-lg font-bold transition-all shadow-sm flex items-center gap-2"
+                >
+                    <X size={18} /> Clear
+                </button>
+            )}
+        </div>
       </div>
 
       <div className="grid md:grid-cols-4 gap-6 mb-8">
@@ -115,7 +227,8 @@ function WaybillManagement() {
         </div>
         <div className="bg-white shadow-sm border border-slate-200 rounded-2xl p-6">
           <p className="text-slate-500 font-medium text-sm">Total Requests</p>
-          <h2 className="text-4xl font-bold mt-3 text-indigo-600">{requests.length}</h2>
+            <div className="text-2xl font-bold text-indigo-600">{filteredRequests.length}</div>
+            <div className="text-slate-500 text-sm font-medium mt-1">Total Requests</div>
         </div>
         <div className="bg-white shadow-sm border border-slate-200 rounded-2xl p-6">
           <p className="text-slate-500 font-medium text-sm">Generated Barcodes</p>
@@ -141,22 +254,28 @@ function WaybillManagement() {
                 </tr>
               </thead>
               <tbody>
-                {requests.length === 0 ? (
+                {filteredRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-slate-500">No requests found</td>
+                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                      No requests found matching your filters.
+                    </td>
                   </tr>
                 ) : (
-                  requests.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <td className="p-4 text-sm font-medium text-slate-800">#{r.id}</td>
+                  filteredRequests.map((req) => (
+                    <tr 
+                        key={req.id} 
+                        id={`waybill-row-${req.id}`}
+                        className={`hover:bg-slate-50 transition-colors ${highlightId === req.id ? 'bg-indigo-50/50' : ''}`}
+                    >
+                      <td className="p-4 text-sm font-medium text-slate-800">#{req.id}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div>
-                            <div className="text-sm font-bold text-slate-800">{r.clientName || 'Unknown Client'}</div>
-                            <div className="text-xs text-slate-500">ID: {r.clientId}</div>
+                            <div className="text-sm font-bold text-slate-800">{req.clientName || 'Unknown Client'}</div>
+                            <div className="text-xs text-slate-500">ID: {req.clientId}</div>
                           </div>
                           <button
-                              onClick={() => openClientModal(r.clientId)}
+                              onClick={() => openClientModal(req.clientId)}
                               className="flex items-center justify-center w-7 h-7 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
                               title="View Client Details"
                           >
@@ -164,28 +283,26 @@ function WaybillManagement() {
                           </button>
                         </div>
                       </td>
-                      <td className="p-4 text-sm font-medium text-slate-600">{r.noOfWaybills}</td>
-                      <td className="p-4 text-sm text-slate-600">
-                        {new Date(r.requestedDate.includes('Z') ? r.requestedDate : r.requestedDate + 'Z').toLocaleDateString()}
-                      </td>
+                      <td className="p-4 text-sm font-bold text-slate-700">{req.noOfWaybills}</td>
+                      <td className="p-4 text-sm text-slate-500">{new Date(req.requestedDate).toLocaleDateString()}</td>
                       <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${r.status === "Pending" ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"}`}>
-                          {r.status}
+                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                          req.status === "Pending" ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"
+                        }`}>
+                          {req.status}
                         </span>
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                            {r.status === "Pending" ? (
-                            <button
-                                onClick={() => approveRequest(r.id)}
-                                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm"
-                            >
-                                Approve
-                            </button>
-                            ) : (
-                                <span className="text-slate-400 text-sm font-medium">Completed</span>
-                            )}
-                        </div>
+                      <td className="p-4 text-sm font-medium">
+                        {req.status === "Pending" ? (
+                          <button
+                            onClick={() => approveRequest(req.id)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
+                          >
+                            Generate Barcodes
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">Completed</span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -271,6 +388,20 @@ function WaybillManagement() {
           </div>
         </div>
       )}
+
+      {/* FILTER SIDEBAR */}
+      <FilterSidebar
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          filters={filters}
+          setFilters={setFilters}
+          showBranchFilter={!branchId && isAdmin} // Only show if Admin and no branch in URL
+          branches={branches}
+          statusOptions={[
+              { label: "Pending", value: "Pending" },
+              { label: "Done", value: "Done" }
+          ]}
+      />
     </div>
   );
 }

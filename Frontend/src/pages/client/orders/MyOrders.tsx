@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { getMyOrders } from "../../../services/orderService";
-import { Package, Clock, CheckCircle, Search, Activity, MapPin, X, Printer, Edit } from "lucide-react";
+import { Package, CheckCircle, Search, Activity, MapPin, X, Printer, Edit } from "lucide-react";
 import { getTrackingInfo } from "../../../services/trackingService";
 import type { OrderTracking } from "../../../services/trackingService";
 import WaybillModal from "../../../components/WaybillModal";
 import EditOrderModal from "../../../components/EditOrderModal";
+import TrackingTimeline from "../../../components/TrackingTimeline";
 
 function MyOrders() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -37,12 +38,12 @@ function MyOrders() {
     }
   };
 
-  const handleTrackClick = async (trackingNo: string) => {
+  const handleTrackClick = async (trackingNumber: string) => {
       setTrackingLoading(true);
       setShowTrackingModal(true);
       setSelectedTracking(null);
       try {
-          const data = await getTrackingInfo(trackingNo);
+          const data = await getTrackingInfo(trackingNumber);
           setSelectedTracking(data);
       } catch (error) {
           console.error("Failed to load tracking info", error);
@@ -54,7 +55,7 @@ function MyOrders() {
   const filtered = useMemo(() => {
     return orders.filter(
       x =>
-        x.orderNo?.toLowerCase().includes(search.toLowerCase()) ||
+        x.trackingNumber?.toLowerCase().includes(search.toLowerCase()) ||
         x.customerName?.toLowerCase().includes(search.toLowerCase())
     );
   }, [orders, search]);
@@ -123,8 +124,8 @@ function MyOrders() {
             ) : filtered.length > 0 ? (
               filtered.map(order => (
                 <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-5 font-mono font-medium text-indigo-600">{order.orderNo}</td>
-                  <td className="font-mono text-slate-600 text-sm">{order.waybillId || "N/A"}</td>
+                  <td className="p-5 font-mono font-medium text-indigo-600">{order.trackingNumber}</td>
+                  <td className="font-mono text-slate-600 text-sm">{order.trackingNumber || "N/A"}</td>
                   <td className="font-medium text-slate-800">{order.customerName}</td>
                   <td className="text-sm">
                     <div className="flex items-center gap-1 text-slate-500">
@@ -147,7 +148,7 @@ function MyOrders() {
                   <td className="p-5 text-right">
                     <div className="inline-flex items-center gap-2">
                       <button 
-                          onClick={() => handleTrackClick(order.orderNo || order.id.toString())}
+                          onClick={() => handleTrackClick(order.trackingNumber || order.id.toString())}
                           className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white px-3.5 py-2 rounded-xl transition-all font-medium text-sm inline-flex items-center gap-1.5 shadow-sm">
                           <Activity size={16} /> Track
                       </button>
@@ -214,7 +215,7 @@ function MyOrders() {
                                   <div className="grid grid-cols-2 gap-4">
                                       <div>
                                           <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-1">Waybill No</p>
-                                          <p className="font-mono text-lg font-bold text-indigo-900">{selectedTracking.waybillId}</p>
+                                          <p className="font-mono text-lg font-bold text-indigo-900">{selectedTracking.trackingNumber}</p>
                                       </div>
                                       <div>
                                           <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-1">Current Status</p>
@@ -230,31 +231,10 @@ function MyOrders() {
                               {/* Timeline */}
                               <div className="mb-8">
                                   <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6">Tracking Timeline</h4>
-                                  <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                                      {selectedTracking.history?.length > 0 ? (
-                                          selectedTracking.history.map((h, i) => (
-                                              <div key={h.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                                  <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-indigo-500 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                                                      <MapPin size={16} />
-                                                  </div>
-                                                  <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                                      <div className="flex items-center justify-between mb-1">
-                                                          <h5 className="font-bold text-slate-800">{h.status}</h5>
-                                                          <time className="text-xs font-medium text-slate-400">{new Date(h.updatedAt).toLocaleString()}</time>
-                                                      </div>
-                                                      {h.location && (
-                                                          <p className="text-sm font-semibold text-indigo-600 mb-1 flex items-center gap-1">
-                                                              <MapPin size={12} /> {h.location}
-                                                          </p>
-                                                      )}
-                                                      <p className="text-sm text-slate-600">{h.remarks || 'No remarks'}</p>
-                                                  </div>
-                                              </div>
-                                          ))
-                                      ) : (
-                                          <div className="text-center py-8 text-slate-500">No tracking history available yet.</div>
-                                      )}
-                                  </div>
+                                  <TrackingTimeline 
+                                      history={selectedTracking.history} 
+                                      createdAt={selectedTracking.createdAt}
+                                  />
                               </div>
                           </div>
                       ) : (

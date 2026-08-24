@@ -1,4 +1,4 @@
-﻿namespace Courier.API.Entities
+namespace Courier.API.Entities
 {
     public class User
     {
@@ -19,7 +19,7 @@
 
         public bool IsActive { get; set; } = true;
 
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime CreatedAt { get; set; } = Courier.API.Utils.TimeUtil.GetSriLankaTime();
 
         public string? RefreshToken { get; set; }
         public DateTime? RefreshTokenExpiry { get; set; }

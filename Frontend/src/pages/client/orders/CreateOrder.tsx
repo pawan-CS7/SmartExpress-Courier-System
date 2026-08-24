@@ -14,7 +14,7 @@ function CreateOrder() {
   const [bulkFile, setBulkFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
-    waybillId: "",
+    trackingNumber: "",
     customerName: "",
     phone1: "",
     weight: "",
@@ -43,7 +43,7 @@ function CreateOrder() {
 
   const handleAutoAssign = () => {
     if (availableBarcodes.length > 0) {
-      setFormData({ ...formData, waybillId: availableBarcodes[0].barcode });
+      setFormData({ ...formData, trackingNumber: availableBarcodes[0].barcode });
     } else {
       setErrorMsg("No available barcodes to assign. Please request more Waybills.");
     }
@@ -58,11 +58,12 @@ function CreateOrder() {
     try {
       const res = await createOrder({
         ...formData,
+        waybillId: formData.trackingNumber,
         codAmount: formData.codAmount ? parseFloat(formData.codAmount) : null
       });
-      setSuccessMsg(`Order successfully created! Tracking Number: ${res.orderNo}`);
+      setSuccessMsg(`Order successfully created! Tracking Number: ${res.trackingNumber || res.id}`);
       setFormData({
-        waybillId: "",
+        trackingNumber: "",
         customerName: "",
         phone1: "",
         weight: "",
@@ -71,6 +72,9 @@ function CreateOrder() {
       });
       // Refresh barcodes to remove the one we just used
       fetchBarcodes();
+      // Dispatch sync events across components
+      window.dispatchEvent(new Event("ordersUpdated"));
+      window.dispatchEvent(new Event("notificationsUpdated"));
     } catch (err: any) {
       const serverMsg = err.response?.data?.message || err.message;
       setErrorMsg(`Error: ${serverMsg}`);
@@ -160,13 +164,13 @@ function CreateOrder() {
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6">
               <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">
-                Barcode / Waybill Number *
+                Tracking Number <span className="text-red-500">*</span>
               </label>
               
               <div className="flex gap-3">
                 <select
-                  name="waybillId"
-                  value={formData.waybillId}
+                  name="trackingNumber"
+                  value={formData.trackingNumber}
                   onChange={handleChange}
                   required
                   className="w-full bg-white border border-slate-200 p-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all text-lg font-mono"
